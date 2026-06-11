@@ -1,0 +1,14 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+COPY crawler/requirements.txt /app/crawler-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -r crawler-requirements.txt
+
+COPY mcp/ mcp/
+COPY db/ db/
+COPY crawler/ crawler/
+COPY scrapy.cfg scrapy.cfg
+
+CMD ["celery", "-A", "crawler.tasks", "worker", "--loglevel=info"]

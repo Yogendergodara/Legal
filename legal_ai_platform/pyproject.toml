@@ -1,0 +1,35 @@
+[project]
+name = "legal-ai-platform"
+version = "0.1.0"
+description = "Legal AI Platform — API Gateway, Query Orchestrator, and Agent Registry"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.27.0",
+    "httpx>=0.26.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.0",
+    "deep_research_from_scratch @ file:../Legal_Ai_Research_Agent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.6.1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=73.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["legal_ai_platform"]
+
+[tool.setuptools.package-dir]
+"legal_ai_platform" = "src/legal_ai_platform"

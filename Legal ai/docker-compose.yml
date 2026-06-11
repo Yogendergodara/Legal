@@ -1,0 +1,139 @@
+services:
+  open-websearch:
+    image: ghcr.io/aas-ee/open-web-search:latest
+    container_name: open-websearch
+    ports:
+      - "3002:3000"
+    environment:
+      OPEN_WEBSEARCH_DAEMON_HOST: "0.0.0.0"
+      OPEN_WEBSEARCH_DAEMON_PORT: "3000"
+      DEFAULT_SEARCH_ENGINE: duckduckgo
+      ENABLE_CORS: "true"
+      CORS_ORIGIN: "*"
+    command: ["node", "build/index.js", "serve", "--host", "0.0.0.0", "--port", "3000"]
+    networks:
+      - legalai-internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: legalai-postgres
+    environment:
+      POSTGRES_USER: legalai
+      POSTGRES_PASSWORD: legalai
+      POSTGRES_DB: legalai
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - legalai-internal
+    expose:
+      - "5432"
+    restart: unless-stopped
+    ports:
+      - "5435:5432"   # host 5435 — avoid conflict with local Postgres on 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U legalai -d legalai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: legalai-db-migrate
+    environment:
+      DATABASE_URL: postgresql://legalai:legalai@postgres:5432/legalai
+    networks:
+      - legalai-internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: python scripts/init_db.py
+    restart: "no"
+
+  retrieval-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: retrieval-mcp
+    ports:
+      - "8002:8001"
+    environment:
+      WEBSEARCH_BASE_URL: http://open-websearch:3000
+      WEBSEARCH_BACKEND: open-websearch
+      LOG_LEVEL: INFO
+      EXTERNAL_TIMEOUT_SECONDS: 30
+      DATABASE_URL: postgresql://legalai:legalai@postgres:5432/legalai
+      EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
+      SEMANTIC_HYBRID_ALPHA: 0.5
+    networks:
+      - legalai-internal
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      open-websearch:
+        condition: service_healthy
+    command: uvicorn mcp.retrieval_server.main:app --host 0.0.0.0 --port 8001
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: legalai-redis
+    networks:
+      - legalai-internal
+    expose:
+      - "6379"
+    restart: unless-stopped
+
+  crawler-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawler
+    container_name: legalai-crawler-worker
+    environment:
+      DATABASE_URL: postgresql://legalai:legalai@postgres:5432/legalai
+      CELERY_BROKER_URL: redis://redis:6379/0
+      S3_BUCKET: legalai-crawler
+    networks:
+      - legalai-internal
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A crawler.tasks worker --loglevel=info
+    restart: unless-stopped
+
+  crawler-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.crawler
+    container_name: legalai-crawler-beat
+    environment:
+      DATABASE_URL: postgresql://legalai:legalai@postgres:5432/legalai
+      CELERY_BROKER_URL: redis://redis:6379/0
+    networks:
+      - legalai-internal
+    depends_on:
+      - postgres
+      - redis
+    command: celery -A crawler.tasks beat --loglevel=info
+    restart: unless-stopped
+
+networks:
+  legalai-internal:
+    internal: false
+
+volumes:
+  postgres_data:

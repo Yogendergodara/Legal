@@ -1,0 +1,9 @@
+{
+  "tenant_id": "demo-tenant",
+  "source_id": "internal:edb7516557c3",
+  "title": "NDA Policy",
+  "clean_text": "Confidentiality obligations apply for a period of two years after termination.",
+  "content_hash": "01a5fc1392305319f1624964df6c7bc43c7efb14bc8535af626f632403f6edc8",
+  "metadata": {},
+  "created_at": "2026-06-10T10:33:54.379804+00:00"
+}
