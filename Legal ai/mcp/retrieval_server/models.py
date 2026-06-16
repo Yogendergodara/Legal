@@ -177,6 +177,8 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     timestamp: datetime
+    degraded: bool = False
+    warnings: list[str] = Field(default_factory=list)
 
 
 def utc_now() -> datetime:

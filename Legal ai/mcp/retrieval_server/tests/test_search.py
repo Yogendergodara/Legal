@@ -77,5 +77,21 @@ class TestDedupeAndRank:
         assert len(final) == 3
         assert final[0].relevance_score == 1.0
 
+    def test_authority_boost_ranks_indian_kanoon_above_blog(self, search_service: SearchService) -> None:
+        ik = _make_result("ik:1", 0.5, title="Indian Kanoon case")
+        ik = ik.model_copy(
+            update={
+                "url": "https://indiankanoon.org/doc/1/",
+                "metadata": {"backend": "indiankanoon"},
+            }
+        )
+        blog = _make_result("blog:1", 0.8, title="Blog summary")
+        blog = blog.model_copy(update={"url": "https://www.lawsikho.com/murder-law"})
+
+        final = search_service._dedupe_and_rank([blog, ik], max_results=2)
+
+        assert final[0].url.startswith("https://indiankanoon.org")
+        assert final[0].metadata.get("authority_tier") == "primary"
+
     def test_empty_input_returns_empty(self, search_service: SearchService) -> None:
         assert search_service._dedupe_and_rank([], max_results=10) == []

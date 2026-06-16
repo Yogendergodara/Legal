@@ -37,11 +37,25 @@ async def test_orchestrator_routes_to_registered_agent():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_raises_when_agent_missing():
+async def test_orchestrator_falls_back_to_research_when_specialized_agent_missing():
     registry = AgentRegistry()
+    registry.register("research", _StubResearchAgent())
+    orchestrator = QueryOrchestrator(registry=registry, classifier=TaskClassifier())
+    response = await orchestrator.handle(AgentRequest(query="Review this NDA contract"))
+    assert response.success is True
+    assert response.agent == "research"
+    assert "NDA contract" in response.output
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_raises_when_explicit_task_type_missing():
+    registry = AgentRegistry()
+    registry.register("research", _StubResearchAgent())
     orchestrator = QueryOrchestrator(registry=registry, classifier=TaskClassifier())
     with pytest.raises(AgentNotFoundError):
-        await orchestrator.handle(AgentRequest(query="Review this NDA contract"))
+        await orchestrator.handle(
+            AgentRequest(query="Review this NDA contract", task_type="contract")
+        )
 
 
 @pytest.mark.asyncio

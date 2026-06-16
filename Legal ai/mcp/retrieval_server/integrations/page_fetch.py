@@ -78,29 +78,43 @@ def _title_from_url(url: str) -> str:
 
 def _extract_pdf_text(content: bytes) -> tuple[str, str | None]:
 
-    """Extract text and optional title from PDF bytes."""
+    """Extract text and optional title from PDF bytes. Handles truncated/malformed PDFs."""
 
-    reader = PdfReader(BytesIO(content))
+    from pypdf.errors import PdfReadError, PdfStreamError
 
     title: str | None = None
 
-    if reader.metadata:
-
-        raw_title = reader.metadata.get("/Title") or reader.metadata.title
-
-        if raw_title and str(raw_title).strip():
-
-            title = str(raw_title).strip()
-
-
-
     pages: list[str] = []
 
-    for page in reader.pages:
+    try:
 
-        pages.append(page.extract_text() or "")
+        reader = PdfReader(BytesIO(content), strict=False)
 
+        if reader.metadata:
 
+            raw_title = reader.metadata.get("/Title") or reader.metadata.title
+
+            if raw_title and str(raw_title).strip():
+
+                title = str(raw_title).strip()
+
+        for page in reader.pages:
+
+            try:
+
+                pages.append(page.extract_text() or "")
+
+            except Exception:
+
+                continue
+
+    except (PdfStreamError, PdfReadError) as exc:
+
+        logger.warning("pdf stream error, returning partial content", error=str(exc))
+
+    except Exception as exc:
+
+        logger.warning("pdf extraction failed, returning partial content", error=str(exc))
 
     return "\n\n".join(part for part in pages if part.strip()), title
 
@@ -204,7 +218,25 @@ async def fetch_clean_text(
 
         if is_pdf:
 
-            text, pdf_title = _extract_pdf_text(response.content)
+            try:
+
+                text, pdf_title = _extract_pdf_text(response.content)
+
+            except Exception as exc:
+
+                logger.warning(
+
+                    "pdf extraction failed, using empty text",
+
+                    request_id=request_id,
+
+                    url=url,
+
+                    error=str(exc),
+
+                )
+
+                text, pdf_title = "", None
 
             title = pdf_title or _title_from_url(str(response.url))
 

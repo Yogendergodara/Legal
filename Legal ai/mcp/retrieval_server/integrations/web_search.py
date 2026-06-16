@@ -39,11 +39,18 @@ def _extract_search_results(payload: object) -> list[dict[str, Any]]:
     return []
 
 
-def _duckduckgo_search_sync(query: str, max_results: int) -> list[dict[str, Any]]:
-    """Run DuckDuckGo text search (sync — called from a thread pool)."""
+def _duckduckgo_search_sync(
+    query: str, max_results: int, timeout: float = 8.0
+) -> list[dict[str, Any]]:
+    """Run DuckDuckGo text search (sync — called from a thread pool).
+
+    ``timeout`` is forwarded to the DDGS HTTP client so individual engine
+    requests do not stall indefinitely.  The asyncio-level ``wait_for`` in
+    callers provides the outer hard cap.
+    """
     from ddgs import DDGS
 
-    raw = DDGS().text(query, max_results=max_results, region="in-en")
+    raw = DDGS(timeout=timeout).text(query, max_results=max_results, region="in-en")
     results: list[dict[str, Any]] = []
     for idx, item in enumerate(raw):
         if not isinstance(item, dict):
@@ -115,7 +122,7 @@ class WebSearchClient:
         start = time.perf_counter()
         try:
             results = await asyncio.wait_for(
-                asyncio.to_thread(_duckduckgo_search_sync, query, max_results),
+                asyncio.to_thread(_duckduckgo_search_sync, query, max_results, self._timeout),
                 timeout=self._timeout,
             )
             duration_ms = int((time.perf_counter() - start) * 1000)

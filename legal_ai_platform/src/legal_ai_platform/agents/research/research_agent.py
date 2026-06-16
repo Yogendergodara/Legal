@@ -15,6 +15,7 @@ from deep_research_from_scratch.research_agent_full import deep_researcher_build
 from legal_ai_platform.agents.base.base_agent import BaseAgent
 from legal_ai_platform.mcp.retrieval_client import RetrievalMCPClient
 from legal_ai_platform.models.agent import AgentRequest, AgentResponse
+from legal_ai_platform.models.retrieval import RetrievalResult
 from legal_ai_platform.models.research import ResearchRequest, ResearchResponse
 from legal_ai_platform.observability.events import Failure, Latency
 from legal_ai_platform.observability.hooks import HookRegistry
@@ -56,7 +57,12 @@ class ResearchAgent(BaseAgent):
             max_results=request.max_results,
             thread_id=thread_id,
         )
-        run_config = {"configurable": {"thread_id": thread_id}}
+        run_config = {
+            "configurable": {
+                "thread_id": thread_id,
+                "tenant_id": request.tenant_id,
+            }
+        }
 
         started = time.perf_counter()
         try:
@@ -69,6 +75,7 @@ class ResearchAgent(BaseAgent):
             else:
                 result = await coro
             research_response = self._build_research_response(result)
+            research_directions = result.get("research_directions") or []
             latency_ms = (time.perf_counter() - started) * 1000
             self.hooks.emit(
                 Latency(operation="research_agent.execute", latency_ms=latency_ms)
@@ -81,6 +88,7 @@ class ResearchAgent(BaseAgent):
                 success=True,
                 thread_id=thread_id,
                 awaiting_input=research_response.awaiting_input,
+                research_directions=research_directions,
             )
         except asyncio.TimeoutError:
             latency_ms = (time.perf_counter() - started) * 1000
@@ -124,20 +132,49 @@ class ResearchAgent(BaseAgent):
                 else dict(verification)
             )
 
-        # When the pipeline short-circuits (e.g. clarify_with_user needs more
-        # info), there is no final_report — surface the last assistant message
-        # so the API client sees the clarification question instead of "".
         final_report = state.get("final_report")
         awaiting_input = not bool(final_report)
         report = final_report or self._last_ai_text(state)
 
+        sources = self._map_retrieved_sources(state.get("retrieved_sources") or [])
+
         return ResearchResponse(
             report=report,
             research_brief=state.get("research_brief"),
+            sources=sources,
             raw_notes=state.get("raw_notes", []),
             verification=verification_dict,
             awaiting_input=awaiting_input,
         )
+
+    @staticmethod
+    def _map_retrieved_sources(raw_sources: list[Any]) -> list[RetrievalResult]:
+        """Convert graph-state RetrievedSource objects to API RetrievalResult."""
+        mapped: list[RetrievalResult] = []
+        for item in raw_sources:
+            if hasattr(item, "model_dump"):
+                data = item.model_dump()
+            elif isinstance(item, dict):
+                data = item
+            else:
+                continue
+            url = str(data.get("url") or "")
+            mapped.append(
+                RetrievalResult(
+                    source=url or data.get("source_type", "web"),
+                    title=str(data.get("title") or ""),
+                    url=url,
+                    content=str(data.get("excerpt") or ""),
+                    citation=str(data.get("citation") or ""),
+                    score=1.0 if data.get("fetched") else 0.5,
+                    metadata={
+                        "authority_tier": data.get("authority_tier"),
+                        "fetched": data.get("fetched"),
+                        "source_type": data.get("source_type"),
+                    },
+                )
+            )
+        return mapped
 
     @staticmethod
     def _last_ai_text(state: dict[str, Any]) -> str:

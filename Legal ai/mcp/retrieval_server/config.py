@@ -71,6 +71,24 @@ class Settings(BaseSettings):
         default="memory",
         alias="DEEP_RESEARCH_MEMORY_DIR",
     )
+    # Per-call timeout for each individual DDG site-search task.
+    # Kept short so a single blocked engine doesn't hold up the whole fan-out.
+    legal_authority_call_timeout: float = Field(
+        default=8.0,
+        alias="LEGAL_AUTHORITY_CALL_TIMEOUT",
+    )
+    # Hard budget for the entire LegalAuthoritySearchClient.search() call.
+    # After this many seconds we return whatever we have collected so far.
+    legal_authority_global_timeout: float = Field(
+        default=18.0,
+        alias="LEGAL_AUTHORITY_GLOBAL_TIMEOUT",
+    )
+    # When true, /tools/search (search_type=all) skips the general web backend
+    # after legal-authority fan-out — avoids a redundant DuckDuckGo round-trip.
+    search_skip_redundant_web: bool = Field(
+        default=True,
+        alias="SEARCH_SKIP_REDUNDANT_WEB",
+    )
 
 
 @lru_cache

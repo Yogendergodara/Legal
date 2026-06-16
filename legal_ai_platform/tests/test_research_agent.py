@@ -51,13 +51,68 @@ async def test_clarification_surfaces_question_and_awaiting_input():
 
 
 @pytest.mark.asyncio
+async def test_research_directions_surfaces_awaiting_input():
+    state = {
+        "messages": [AIMessage(content="I can research this from these angles:\n\n1. Option A")],
+        "research_directions": [
+            "IAMAI v RBI — RBI cryptocurrency restrictions",
+            "PMLA enforcement on virtual digital assets",
+        ],
+    }
+    agent = _make_agent(state)
+    response = await agent.execute(AgentRequest(query="cryptocurrency regulation"))
+    assert response.awaiting_input is True
+    assert len(response.research_directions) == 2
+    assert "IAMAI" in response.research_directions[0]
+
+
+@pytest.mark.asyncio
+async def test_thread_id_and_tenant_id_passed_to_graph():
+    agent = _make_agent({"final_report": "ok", "messages": []})
+    response = await agent.execute(
+        AgentRequest(query="follow up", thread_id="session-123", tenant_id="tenant-abc")
+    )
+    assert response.thread_id == "session-123"
+    assert agent._graph.last_config == {
+        "configurable": {"thread_id": "session-123", "tenant_id": "tenant-abc"}
+    }
+
+
+@pytest.mark.asyncio
+async def test_sources_populated_from_state():
+    state = {
+        "final_report": "# Memo",
+        "messages": [],
+        "retrieved_sources": [
+            {
+                "url": "https://indiankanoon.org/doc/1/",
+                "title": "Test Case",
+                "authority_tier": "primary",
+                "fetched": True,
+                "citation": "2024 INSC 1",
+                "excerpt": "Ratio text",
+                "source_type": "indiankanoon",
+            }
+        ],
+    }
+    agent = _make_agent(state)
+    response = await agent.execute(AgentRequest(query="case law?"))
+    research = response.artifacts["research"]
+    assert len(research["sources"]) == 1
+    assert research["sources"][0]["url"] == "https://indiankanoon.org/doc/1/"
+    assert research["sources"][0]["metadata"]["fetched"] is True
+
+
+@pytest.mark.asyncio
 async def test_thread_id_is_preserved_and_passed_to_graph():
     agent = _make_agent({"final_report": "ok", "messages": []})
     response = await agent.execute(
         AgentRequest(query="follow up", thread_id="session-123")
     )
     assert response.thread_id == "session-123"
-    assert agent._graph.last_config == {"configurable": {"thread_id": "session-123"}}
+    assert agent._graph.last_config == {
+        "configurable": {"thread_id": "session-123", "tenant_id": None}
+    }
 
 
 @pytest.mark.asyncio

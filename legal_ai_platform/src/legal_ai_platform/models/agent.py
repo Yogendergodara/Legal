@@ -42,3 +42,7 @@ class AgentResponse(BaseModel):
         default=False,
         description="True when the agent needs a follow-up reply (e.g. a clarification)",
     )
+    research_directions: list[str] = Field(
+        default_factory=list,
+        description="Pre-research direction options for the user to choose from; non-empty when awaiting_input=True and the agent is presenting research angles",
+    )
