@@ -3,20 +3,25 @@ liability:
   search_queries:
     - limitation of liability cap damages
     - liability shall not exceed
+  review_guidance: "Consider aggregate caps, carve-outs, exclusions, and whether limits apply per claim or in total."
 indemnification:
   label: Indemnification
   search_queries:
     - indemnify hold harmless defend
     - indemnification obligation
+  review_guidance: "Consider scope of indemnified parties, covered claims, caps, and mutual vs one-way indemnity."
 termination:
   label: Termination
   search_queries:
     - termination for convenience notice period
+  review_guidance: "Consider notice periods, for-cause vs convenience, and post-termination obligations."
 confidentiality:
   label: Confidentiality
   search_queries:
     - confidential information non-disclosure
+  review_guidance: "Consider definition of confidential information, permitted disclosures, and duration."
 data_protection:
   label: Data Protection
   search_queries:
     - personal data processing privacy DPDP
+  review_guidance: "Consider processing purpose, security measures, breach notice, and cross-border transfers."

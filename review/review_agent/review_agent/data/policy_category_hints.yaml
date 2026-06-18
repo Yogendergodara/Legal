@@ -1,0 +1,57 @@
+# Lexical section → policy category hints (Phase 10 fallback classifier).
+security:
+  - security control
+  - cybersecurity
+  - encryption
+  - access control
+  - information security
+vendor_security:
+  - vendor shall
+  - third party
+  - subcontractor
+  - supplier security
+privacy:
+  - personal data
+  - privacy
+  - gdpr
+  - pii
+data_retention:
+  - retention
+  - destroy data
+  - delete data
+confidentiality:
+  - confidential
+  - non-disclosure
+  - nda
+indemnity:
+  - indemnify
+  - indemnification
+  - hold harmless
+liability:
+  - limitation of liability
+  - liable
+  - damages
+  - cap on liability
+termination:
+  - terminate
+  - termination
+  - notice period
+ip:
+  - intellectual property
+  - patent
+  - copyright
+  - trademark
+employment:
+  - employee
+  - employment
+  - non-compete
+  - non-solicit
+procurement:
+  - purchase order
+  - procurement
+  - vendor agreement
+governing_law:
+  - governing law
+  - jurisdiction
+  - dispute resolution
+  - arbitration

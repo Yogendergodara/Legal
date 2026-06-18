@@ -66,9 +66,10 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     embedding_model: str = Field(
-        default="sentence-transformers/all-MiniLM-L6-v2",
+        default="nomic-ai/modernbert-embed-base",
         alias="EMBEDDING_MODEL",
     )
+    embedding_truncate_dim: int | None = Field(default=None, alias="EMBEDDING_TRUNCATE_DIM")
     semantic_hybrid_alpha: float = Field(
         default=0.5,
         alias="SEMANTIC_HYBRID_ALPHA",

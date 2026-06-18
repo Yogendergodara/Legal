@@ -3,20 +3,11 @@ from uuid import uuid4
 import pytest
 
 from document_core.parser.text_parser import parse_text_to_tree
-from document_core.schemas.chunk import DocumentKind, SearchRequest
-from document_core.indexer.parent_child import build_parent_child_chunks
+from document_core.schemas.chunk import DocumentKind, IngestRequest, SearchRequest
 from document_core.services.ingest import ingest_document
 from document_core.services.search import search_contract
-from document_core.schemas.chunk import IngestRequest
-from document_core.store.memory_store import InMemoryDocumentStore, set_store
+from document_core.store.pgvector_store import PgVectorDocumentStore
 from tests.fixtures import SAMPLE_CONTRACT
-
-
-@pytest.fixture
-def store() -> InMemoryDocumentStore:
-    s = InMemoryDocumentStore()
-    set_store(s)
-    return s
 
 
 def test_parse_numbered_sections():
@@ -30,7 +21,7 @@ def test_parse_numbered_sections():
 
 
 @pytest.mark.asyncio
-async def test_subsection_search_returns_parent(store: InMemoryDocumentStore):
+async def test_subsection_search_returns_parent(store: PgVectorDocumentStore):
     tenant = "test-tenant"
     result = await ingest_document(
         IngestRequest(tenant_id=tenant, title="MSA", kind=DocumentKind.CONTRACT, text=SAMPLE_CONTRACT),

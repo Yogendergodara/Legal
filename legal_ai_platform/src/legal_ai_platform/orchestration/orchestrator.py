@@ -11,6 +11,7 @@ from legal_ai_platform.observability.hooks import HookRegistry
 from legal_ai_platform.orchestration.classifier import TaskClassifier
 from legal_ai_platform.orchestration.registry import AgentRegistry
 from legal_ai_platform.session.service import SessionService
+from review_agent.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -136,14 +137,35 @@ class QueryOrchestrator:
             or ""
         ).strip()
         policies = context.get("policies") or request.policies or matter.get("policies") or []
+        policy_refs = (
+            context.get("policy_refs")
+            or request.policy_refs
+            or matter.get("policy_refs")
+            or []
+        )
+        policy_document_ids = (
+            context.get("policy_document_ids")
+            or request.policy_document_ids
+            or matter.get("policy_document_ids")
+            or []
+        )
 
         if not contract_text:
             raise ReviewPayloadError(
                 "Review requires contract_text (or non-empty query as contract body)"
             )
-        if not policies:
+
+        review_source = (
+            context.get("review_policy_source")
+            or get_settings().review_policy_source
+        )
+        if review_source == "tenant_auto":
+            return
+
+        if not policies and not policy_refs and not policy_document_ids:
             raise ReviewPayloadError(
-                "Review requires at least one policy in policies[] or session matter"
+                "Review requires policies[], policy_refs, or policy_document_ids "
+                "(or set REVIEW_POLICY_SOURCE=tenant_auto for contract-only discovery)"
             )
 
     def _raise_agent_not_found(self, task_type: str) -> None:

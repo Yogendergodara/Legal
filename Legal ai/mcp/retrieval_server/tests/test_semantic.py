@@ -17,9 +17,9 @@ async def test_semantic_search_returns_results() -> None:
     service = SemanticSearchService(settings)
 
     with patch(
-        "mcp.retrieval_server.semantic_service.embed_text",
+        "mcp.retrieval_server.semantic_service.embed_query",
         new_callable=AsyncMock,
-        return_value=[0.1] * 384,
+        return_value=[0.1] * 768,
     ):
         with patch(
             "mcp.retrieval_server.semantic_service.semantic_search_web",
@@ -49,7 +49,7 @@ async def test_semantic_search_failure_returns_stub() -> None:
     service = SemanticSearchService(Settings())
 
     with patch(
-        "mcp.retrieval_server.semantic_service.embed_text",
+        "mcp.retrieval_server.semantic_service.embed_query",
         new_callable=AsyncMock,
         side_effect=RuntimeError("embed failed"),
     ):

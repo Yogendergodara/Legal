@@ -1,4 +1,4 @@
-"""File-backed session persistence."""
+"""File-backed session persistence (implements SessionStore)."""
 
 from __future__ import annotations
 

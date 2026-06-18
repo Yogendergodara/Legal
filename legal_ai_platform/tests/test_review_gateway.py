@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from document_core.store.memory_store import InMemoryDocumentStore, set_store
 from legal_ai_platform.agents.base.base_agent import BaseAgent
 from legal_ai_platform.agents.review.review_agent import ReviewAgent
 from legal_ai_platform.container import reset_container
@@ -14,7 +13,7 @@ from legal_ai_platform.mcp.document_client import DocumentMCPClient
 from legal_ai_platform.models.agent import AgentRequest, AgentResponse
 from legal_ai_platform.observability.hooks import HookRegistry
 from legal_ai_platform.orchestration.classifier import TaskClassifier
-from legal_ai_platform.orchestration.orchestrator import QueryOrchestrator, ReviewPayloadError
+from legal_ai_platform.orchestration.orchestrator import QueryOrchestrator, ReviewPayloadError, AgentNotFoundError
 from legal_ai_platform.orchestration.registry import AgentRegistry
 from mcp.document_server.main import app as document_app
 
@@ -51,14 +50,6 @@ class _MinimalContainer:
 
     async def shutdown(self) -> None:
         return None
-
-
-@pytest.fixture(autouse=True)
-def isolated_store():
-    set_store(InMemoryDocumentStore())
-    reset_container()
-    yield
-    reset_container()
 
 
 @pytest.mark.asyncio
@@ -114,8 +105,33 @@ async def test_review_missing_policies_returns_400():
 
 
 @pytest.mark.asyncio
+async def test_orchestrator_allows_contract_only_when_tenant_auto(monkeypatch):
+    from review_agent.config import get_settings
+
+    monkeypatch.setenv("REVIEW_POLICY_SOURCE", "tenant_auto")
+    get_settings.cache_clear()
+
+    orchestrator = QueryOrchestrator(registry=AgentRegistry(), hooks=HookRegistry())
+    request = AgentRequest(task_type="review", contract_text="only contract")
+    with pytest.raises(AgentNotFoundError):
+        await orchestrator.handle(request)
+
+
+@pytest.mark.asyncio
 async def test_orchestrator_validates_review_payload():
     orchestrator = QueryOrchestrator(registry=AgentRegistry(), hooks=HookRegistry())
     request = AgentRequest(task_type="review", contract_text="only contract")
     with pytest.raises(ReviewPayloadError):
+        await orchestrator.handle(request)
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_accepts_policy_refs_without_inline_policies():
+    orchestrator = QueryOrchestrator(registry=AgentRegistry(), hooks=HookRegistry())
+    request = AgentRequest(
+        task_type="review",
+        contract_text="some contract",
+        policy_refs=["catalog-policy-1"],
+    )
+    with pytest.raises(AgentNotFoundError):
         await orchestrator.handle(request)

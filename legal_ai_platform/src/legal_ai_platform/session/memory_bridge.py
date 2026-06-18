@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from legal_ai_platform.session.memory_postgres import PostgresMemoryStore
 from legal_ai_platform.session.models import MatterSnapshot
 
 
@@ -120,11 +121,13 @@ class MemoryBridge:
 
     def __init__(
         self,
-        client: MemorySearchClient,
+        client: MemorySearchClient | None = None,
         *,
+        postgres_store: PostgresMemoryStore | None = None,
         max_hits: int = 5,
     ) -> None:
         self._client = client
+        self._postgres_store = postgres_store
         self._max_hits = max_hits
 
     async def search(
@@ -144,17 +147,26 @@ class MemoryBridge:
             task_type=task_type,
             matter=matter,
         )
-        for q in queries:
-            try:
-                batch = await self._client.search_memory(q)
-            except Exception:  # noqa: BLE001
-                continue
+        if self._postgres_store is not None:
+            batch = self._postgres_store.search(tenant_id, queries, limit=self._max_hits)
             for item in batch:
                 key = item.get("name") or (item.get("content", "")[:80])
                 if key in seen:
                     continue
                 seen.add(key)
                 hits.append(item)
+        elif self._client is not None:
+            for q in queries:
+                try:
+                    batch = await self._client.search_memory(q)
+                except Exception:  # noqa: BLE001
+                    continue
+                for item in batch:
+                    key = item.get("name") or (item.get("content", "")[:80])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    hits.append(item)
 
         trimmed = hits[: self._max_hits]
         return format_memory_hits(trimmed), trimmed
@@ -178,7 +190,19 @@ class MemoryBridge:
             return None
         title, body, hook = payload
         try:
-            result = await self._client.save_memory(title, body, hook)
+            if self._postgres_store is not None:
+                result = self._postgres_store.save(
+                    title=title,
+                    content=body,
+                    hook=hook,
+                    tenant_id=tenant_id,
+                    thread_id=thread_id,
+                    agent="review",
+                )
+            elif self._client is not None:
+                result = await self._client.save_memory(title, body, hook)
+            else:
+                return None
             return {
                 "memory_saved": True,
                 "memory_save_message": result.get("message", "saved"),

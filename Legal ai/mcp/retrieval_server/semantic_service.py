@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 
 from mcp.retrieval_server.config import Settings
-from mcp.retrieval_server.embedding_service import embed_text
+from mcp.retrieval_server.embedding_service import embed_query
 from mcp.retrieval_server.logging_setup import get_logger, truncate
 from mcp.retrieval_server.models import (
     SemanticSearchRequest,
@@ -41,7 +41,7 @@ class SemanticSearchService:
         )
 
         try:
-            query_vec = await embed_text(request.query)
+            query_vec = await embed_query(request.query)
             raw: list[dict] = []
 
             if request.search_type in ("web", "all"):

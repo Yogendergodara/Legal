@@ -52,6 +52,8 @@ class AgentRequest(BaseModel):
     policies: list[PolicyInput] | None = None
     contract_type: str | None = None
     policy_type: str | None = None
+    policy_document_ids: list[str] | None = None
+    policy_refs: list[str] | None = None
 
     @field_validator("policies", mode="before")
     @classmethod
@@ -77,6 +79,10 @@ class AgentRequest(BaseModel):
             merged["contract_type"] = self.contract_type
         if self.policy_type is not None:
             merged["policy_type"] = self.policy_type
+        if self.policy_document_ids is not None:
+            merged["policy_document_ids"] = self.policy_document_ids
+        if self.policy_refs is not None:
+            merged["policy_refs"] = self.policy_refs
         return merged
 
 

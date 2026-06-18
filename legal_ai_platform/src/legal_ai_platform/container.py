@@ -21,8 +21,10 @@ from legal_ai_platform.observability.hooks import HookRegistry
 from legal_ai_platform.orchestration.classifier import TaskClassifier
 from legal_ai_platform.orchestration.orchestrator import QueryOrchestrator
 from legal_ai_platform.orchestration.registry import AgentRegistry
-from legal_ai_platform.session import SessionFileStore, SessionService
+from legal_ai_platform.session import SessionFileStore, SessionPostgresStore, SessionService
 from legal_ai_platform.session.memory_bridge import MemoryBridge
+from legal_ai_platform.session.memory_postgres import PostgresMemoryStore
+from legal_ai_platform.session.store import SessionStore
 
 
 class PlatformContainer:
@@ -48,15 +50,10 @@ class PlatformContainer:
             hooks=self.hooks,
         )
         self.registry = AgentRegistry()
-        session_dir = Path(self.settings.platform_session_dir)
-        memory_bridge = None
-        if self.settings.platform_owns_long_term_memory:
-            memory_bridge = MemoryBridge(
-                self.retrieval_client,
-                max_hits=self.settings.session_memory_max_hits,
-            )
+        session_store = self._build_session_store()
+        memory_bridge = self._build_memory_bridge()
         self.session_service = SessionService(
-            SessionFileStore(session_dir),
+            session_store,
             memory_bridge=memory_bridge,
             transcript_limit=self.settings.session_transcript_max_turns,
             platform_owns_session=self.settings.platform_owns_session,
@@ -85,6 +82,32 @@ class PlatformContainer:
             hooks=self.hooks,
         )
         self.registry.register("review", review_agent)
+
+    def _require_database_url(self) -> str:
+        database_url = self.settings.database_url
+        if not database_url:
+            raise ValueError("DATABASE_URL is required for postgres session/memory backends")
+        return database_url
+
+    def _build_session_store(self) -> SessionStore:
+        if self.settings.session_store_backend == "postgres":
+            return SessionPostgresStore(
+                self._require_database_url(),
+                load_limit=self.settings.session_transcript_load_limit,
+            )
+        session_dir = Path(self.settings.platform_session_dir)
+        return SessionFileStore(session_dir)
+
+    def _build_memory_bridge(self) -> MemoryBridge | None:
+        if not self.settings.platform_owns_long_term_memory:
+            return None
+        max_hits = self.settings.session_memory_max_hits
+        if self.settings.memory_store_backend == "postgres":
+            return MemoryBridge(
+                postgres_store=PostgresMemoryStore(self._require_database_url()),
+                max_hits=max_hits,
+            )
+        return MemoryBridge(self.retrieval_client, max_hits=max_hits)
 
     async def shutdown(self) -> None:
         """Clean up resources on application shutdown."""

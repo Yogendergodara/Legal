@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 from mcp.retrieval_server.config import Settings
-from mcp.retrieval_server.embedding_service import embed_text
+from mcp.retrieval_server.embedding_service import embed_query
 from mcp.retrieval_server.integrations import internal_file_store
 from mcp.retrieval_server.logging_setup import get_logger, truncate
 from mcp.retrieval_server.models import SearchResult
@@ -52,7 +52,7 @@ class InternalDocsClient:
                     root=self._file_root,
                 )
             else:
-                query_vec = await embed_text(query)
+                query_vec = await embed_query(query)
                 raw = await hybrid_search_tenant(
                     query=query,
                     query_vec=query_vec,

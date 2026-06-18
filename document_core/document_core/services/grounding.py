@@ -5,7 +5,8 @@ from __future__ import annotations
 import re
 
 from document_core.schemas.chunk import GroundingCheckRequest, GroundingCheckResult
-from document_core.store.memory_store import DocumentStore, get_store
+from document_core.store.memory_store import get_store
+from document_core.store.protocol import DocumentStore
 
 _WS_RE = re.compile(r"\s+")
 

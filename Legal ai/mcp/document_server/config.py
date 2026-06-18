@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     )
 
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    database_url: str | None = Field(default=None, alias="DATABASE_URL")
+    document_store_backend: str = Field(default="pgvector", alias="DOCUMENT_STORE_BACKEND")
+    search_backend: str = Field(default="lexical", alias="SEARCH_BACKEND")
+    policy_catalog_url: str | None = Field(default=None, alias="POLICY_CATALOG_URL")
+    policy_sync_enabled: bool = Field(default=True, alias="POLICY_SYNC_ENABLED")
 
 
 @lru_cache

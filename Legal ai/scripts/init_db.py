@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Apply db/migrations/001_init.sql without needing psql installed locally.
-
-Usage:
-  python scripts/init_db.py
-  DATABASE_URL=postgresql://legalai:legalai@localhost:5432/legalai python scripts/init_db.py
-"""
+"""Apply db/migrations/*.sql in order."""
 
 from __future__ import annotations
 
@@ -15,7 +10,7 @@ from pathlib import Path
 import psycopg2
 
 ROOT = Path(__file__).resolve().parent.parent
-MIGRATION = ROOT / "db" / "migrations" / "001_init.sql"
+MIGRATIONS_DIR = ROOT / "db" / "migrations"
 
 
 def main() -> None:
@@ -23,29 +18,25 @@ def main() -> None:
         "DATABASE_URL",
         "postgresql://legalai:legalai@localhost:5435/legalai",
     )
-    if not MIGRATION.exists():
-        print(f"Migration file not found: {MIGRATION}", file=sys.stderr)
+    migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    if not migration_files:
+        print(f"No migrations in {MIGRATIONS_DIR}", file=sys.stderr)
         sys.exit(1)
 
-    sql = MIGRATION.read_text(encoding="utf-8")
     print(f"Connecting to {database_url.split('@')[-1]} ...")
     try:
         conn = psycopg2.connect(database_url)
         conn.autocommit = True
         with conn.cursor() as cur:
-            cur.execute(sql)
+            for migration in migration_files:
+                print(f"Applying {migration.name} ...")
+                cur.execute(migration.read_text(encoding="utf-8"))
         conn.close()
     except psycopg2.OperationalError as exc:
         print(f"Connection failed: {exc}", file=sys.stderr)
-        print(
-            "\nMake sure Postgres is running and reachable. Options:\n"
-            "  1. docker compose up -d postgres   (with port 5432 mapped)\n"
-            "  2. Or set DATABASE_URL to your Postgres host\n",
-            file=sys.stderr,
-        )
         sys.exit(1)
 
-    print("Migration applied successfully.")
+    print("Migrations applied successfully.")
 
 
 if __name__ == "__main__":

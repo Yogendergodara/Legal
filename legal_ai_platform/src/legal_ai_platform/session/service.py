@@ -6,8 +6,8 @@ import uuid
 from typing import Any
 
 from legal_ai_platform.models.agent import AgentRequest, AgentResponse
-from legal_ai_platform.session.file_store import SessionFileStore
 from legal_ai_platform.session.memory_bridge import MemoryBridge
+from legal_ai_platform.session.store import SessionStore
 from legal_ai_platform.session.models import MatterSnapshot, SessionState, Turn
 from legal_ai_platform.session.research_cleanup import delete_legacy_research_session_files
 
@@ -17,7 +17,7 @@ class SessionService:
 
     def __init__(
         self,
-        store: SessionFileStore,
+        store: SessionStore,
         memory_bridge: MemoryBridge | None = None,
         *,
         transcript_limit: int = 20,

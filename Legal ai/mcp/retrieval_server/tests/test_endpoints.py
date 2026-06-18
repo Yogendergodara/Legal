@@ -277,14 +277,14 @@ class TestSearchEndpoint:
 class TestPhase2Endpoints:
 
     @patch("mcp.retrieval_server.semantic_service.semantic_search_web", new_callable=AsyncMock)
-    @patch("mcp.retrieval_server.semantic_service.embed_text", new_callable=AsyncMock)
+    @patch("mcp.retrieval_server.semantic_service.embed_query", new_callable=AsyncMock)
     def test_semantic_search_returns_results(
         self,
         mock_embed: AsyncMock,
         mock_search: AsyncMock,
         client: TestClient,
     ) -> None:
-        mock_embed.return_value = [0.1] * 384
+        mock_embed.return_value = [0.1] * 768
         mock_search.return_value = [
             {
                 "source_id": "https://example.com",

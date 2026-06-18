@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
+from document_core.schemas.taxonomy import normalize_categories
+
 
 class DocumentKind(str, Enum):
     CONTRACT = "contract"
@@ -34,8 +36,17 @@ class IngestRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Raw document text (PDF/DOCX later)")
     policy_type: str | None = None
     applies_to_contract_types: list[str] = Field(default_factory=list)
+    categories: list[str] = Field(
+        default_factory=list,
+        description="Policy family tags for metadata retrieval (Phase 10)",
+    )
     effective_date: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("categories", mode="before")
+    @classmethod
+    def normalize_ingest_categories(cls, value: list[str] | None) -> list[str]:
+        return normalize_categories(value if isinstance(value, list) else [])
 
     @field_validator("text")
     @classmethod
@@ -96,6 +107,7 @@ class SearchRequest(BaseModel):
     tenant_id: str
     query: str = Field(..., min_length=1)
     document_id: UUID | None = None
+    document_ids: list[UUID] | None = None
     kind: DocumentKind | None = None
     policy_type: str | None = None
     contract_type: str | None = None

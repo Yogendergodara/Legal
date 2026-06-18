@@ -15,9 +15,9 @@ async def test_internal_docs_search_maps_results() -> None:
     client = InternalDocsClient(Settings())
 
     with patch(
-        "mcp.retrieval_server.integrations.internal_docs.embed_text",
+        "mcp.retrieval_server.integrations.internal_docs.embed_query",
         new_callable=AsyncMock,
-        return_value=[0.1] * 384,
+        return_value=[0.1] * 768,
     ):
         with patch(
             "mcp.retrieval_server.integrations.internal_docs.hybrid_search_tenant",

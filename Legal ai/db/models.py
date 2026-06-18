@@ -23,7 +23,7 @@ class Base(DeclarativeBase):
     pass
 
 
-EMBEDDING_DIM = 384
+EMBEDDING_DIM = 768
 
 
 class SeedSource(Base):

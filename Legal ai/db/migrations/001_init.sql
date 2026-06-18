@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS web_documents (
     published_at TIMESTAMPTZ,
     crawled_at TIMESTAMPTZ DEFAULT NOW(),
     tsv TSVECTOR,
-    embedding vector(384)
+    embedding vector(768)
 );
 CREATE INDEX IF NOT EXISTS ix_web_documents_content_hash ON web_documents(content_hash);
 CREATE INDEX IF NOT EXISTS ix_web_documents_tsv ON web_documents USING gin(tsv);
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS tenant_documents (
     clean_text TEXT NOT NULL,
     content_hash VARCHAR(64) NOT NULL,
     tsv TSVECTOR,
-    embedding vector(384),
+    embedding vector(768),
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),

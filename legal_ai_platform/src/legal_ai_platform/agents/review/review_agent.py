@@ -47,6 +47,8 @@ class ReviewAgent(BaseAgent):
                 contract_text=str(contract_text),
                 contract_title=context.get("contract_title", "Contract"),
                 policy_texts=policies,
+                policy_document_ids=context.get("policy_document_ids"),
+                policy_refs=context.get("policy_refs"),
                 contract_type=context.get("contract_type"),
                 policy_type=context.get("policy_type"),
                 memory_client=memory_client,

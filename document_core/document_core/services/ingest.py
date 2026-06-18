@@ -5,7 +5,8 @@ from __future__ import annotations
 from document_core.indexer.parent_child import build_parent_child_chunks
 from document_core.parser.text_parser import parse_text_to_tree
 from document_core.schemas.chunk import IngestRequest, IngestResult, StructureConfidence, new_document_id
-from document_core.store.memory_store import DocumentStore, get_store
+from document_core.store.memory_store import get_store
+from document_core.store.protocol import DocumentStore
 
 
 async def ingest_document(
@@ -33,7 +34,11 @@ async def ingest_document(
         kind=request.kind,
         policy_type=request.policy_type,
         applies_to_contract_types=request.applies_to_contract_types,
-        metadata=request.metadata,
+        metadata={
+            **request.metadata,
+            "document_title": request.title,
+            **({"categories": request.categories} if request.categories else {}),
+        },
     )
 
     if not parents:

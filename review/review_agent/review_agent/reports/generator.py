@@ -36,12 +36,24 @@ def render_markdown_report(report: ReviewReport) -> str:
 
 def _finding_block(finding: ComplianceFinding) -> list[str]:
     grounded = "yes" if finding.grounded else "no"
-    return [
+    policy_title = (finding.metadata.get("policy_title") or "").strip()
+    lines = [
         f"### {finding.dimension_label} — `{finding.status.value}`",
         f"- **Severity:** {finding.severity.value}",
         f"- **Grounded:** {grounded}",
-        f"- **Rationale:** {finding.rationale}",
-        f"- **Contract quote:** {finding.contract_quote or '—'}",
-        f"- **Policy quote:** {finding.policy_quote or '—'}",
-        "",
     ]
+    if policy_title:
+        lines.append(f"- **Playbook:** {policy_title}")
+    if finding.policy_document_id:
+        lines.append(f"- **Policy document:** `{finding.policy_document_id}`")
+    if finding.status.value == "NON_COMPLIANT" and policy_title:
+        lines.append(f"- **Violated policy:** {policy_title} — {finding.dimension_label}")
+    lines.extend(
+        [
+            f"- **Rationale:** {finding.rationale}",
+            f"- **Contract quote:** {finding.contract_quote or '—'}",
+            f"- **Policy quote:** {finding.policy_quote or '—'}",
+            "",
+        ]
+    )
+    return lines

@@ -20,7 +20,7 @@ def test_ingest_internal_endpoint(client: TestClient) -> None:
     with patch(
         "mcp.retrieval_server.ingest_service.embed_text",
         new_callable=AsyncMock,
-        return_value=[0.1] * 384,
+        return_value=[0.1] * 768,
     ):
         with patch("mcp.retrieval_server.ingest_service.get_session") as mock_session:
             ctx = MagicMock()

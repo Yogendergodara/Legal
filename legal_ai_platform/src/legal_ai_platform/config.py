@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +32,11 @@ class PlatformSettings(BaseSettings):
     platform_port: int = 8080
     platform_log_level: str = "INFO"
     platform_session_dir: str = "memory/sessions"
+    session_store_backend: Literal["file", "postgres"] = "file"
+    database_url: str | None = None
+    session_transcript_load_limit: int = 500
     session_transcript_max_turns: int = 20
+    memory_store_backend: Literal["mcp", "postgres"] = "mcp"
     platform_owns_long_term_memory: bool = True
     platform_owns_session: bool = True
     session_memory_max_hits: int = 5
