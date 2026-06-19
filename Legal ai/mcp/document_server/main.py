@@ -29,10 +29,13 @@ from document_core.schemas.chunk import (
     SearchRequest,
 )
 from document_core.schemas.registry import (
+    DeletePolicyRequest,
+    DeletePolicyResult,
     GetPolicyByRefRequest,
     ListPolicyRegistryRequest,
     ListPolicyRegistryResponse,
     PolicyRegistryRecord,
+    RegisterContractRequest,
     RegisterPolicyRequest,
     SyncPolicyFromCatalogRequest,
 )
@@ -40,8 +43,11 @@ from document_core.services.catalog_sync import sync_policy_from_catalog
 from document_core.services.grounding import verify_quote
 from document_core.services.ingest import ingest_document
 from document_core.services.registry import (
+    delete_policy,
+    get_contract_by_ref,
     get_policy_by_ref,
     list_policy_registry,
+    register_contract,
     register_policy,
 )
 from document_core.services.search import (
@@ -74,6 +80,17 @@ class ListPoliciesRequest(BaseModel):
 
 
 class ListPoliciesResponse(BaseModel):
+    tenant_id: str
+    document_ids: list[str]
+
+
+class ListPolicyIdsByCategoriesRequest(BaseModel):
+    tenant_id: str
+    categories: list[str] = Field(default_factory=list)
+    contract_type: str | None = None
+
+
+class ListPolicyIdsByCategoriesResponse(BaseModel):
     tenant_id: str
     document_ids: list[str]
 
@@ -142,18 +159,29 @@ async def health() -> HealthResponse:
 
 @app.post("/tools/ingest_document", response_model=IngestResult)
 async def ingest_document_tool(request: IngestRequest) -> IngestResult:
-    return await ingest_document(request)
+    try:
+        return await ingest_document(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/tools/index_policy", response_model=IngestResult)
 async def index_policy_tool(request: IngestRequest) -> IngestResult:
     payload = request.model_copy(update={"kind": DocumentKind.POLICY})
-    return await ingest_document(payload)
+    try:
+        return await ingest_document(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/tools/register_policy", response_model=PolicyRegistryRecord)
 async def register_policy_tool(request: RegisterPolicyRequest) -> PolicyRegistryRecord:
     return register_policy(request)
+
+
+@app.post("/tools/register_contract", response_model=PolicyRegistryRecord)
+async def register_contract_tool(request: RegisterContractRequest) -> PolicyRegistryRecord:
+    return register_contract(request)
 
 
 @app.post("/tools/get_policy_by_ref", response_model=PolicyRegistryRecord)
@@ -162,6 +190,22 @@ async def get_policy_by_ref_tool(request: GetPolicyByRefRequest) -> PolicyRegist
     if record is None:
         raise HTTPException(status_code=404, detail="policy not found")
     return record
+
+
+@app.post("/tools/get_contract_by_ref", response_model=PolicyRegistryRecord)
+async def get_contract_by_ref_tool(request: GetPolicyByRefRequest) -> PolicyRegistryRecord:
+    record = get_contract_by_ref(request.tenant_id, request.policy_ref)
+    if record is None:
+        raise HTTPException(status_code=404, detail="contract not found")
+    return record
+
+
+@app.post("/tools/delete_policy", response_model=DeletePolicyResult)
+async def delete_policy_tool(request: DeletePolicyRequest) -> DeletePolicyResult:
+    try:
+        return delete_policy(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.post("/tools/list_policy_registry", response_model=ListPolicyRegistryResponse)
@@ -231,9 +275,29 @@ async def search_policy_by_categories_tool(request: SearchRequest) -> dict[str, 
     return {"results": [h.model_dump(mode="json") for h in hits]}
 
 
+@app.post("/tools/list_policy_ids_by_categories", response_model=ListPolicyIdsByCategoriesResponse)
+async def list_policy_ids_by_categories_tool(
+    request: ListPolicyIdsByCategoriesRequest,
+) -> ListPolicyIdsByCategoriesResponse:
+    doc_ids = await list_policy_ids_by_categories(
+        request.tenant_id,
+        list(request.categories),
+        contract_type=request.contract_type,
+    )
+    return ListPolicyIdsByCategoriesResponse(
+        tenant_id=request.tenant_id,
+        document_ids=[str(doc_id) for doc_id in doc_ids],
+    )
+
+
 @app.post("/tools/list_sections")
 async def list_sections_tool(request: ListSectionsRequest) -> dict[str, Any]:
-    sections = await list_sections(request)
+    try:
+        sections = await list_sections(request)
+    except ValueError as exc:
+        if str(exc) == "document deleted":
+            raise HTTPException(status_code=404, detail="document deleted") from exc
+        raise
     return {"sections": [s.model_dump(mode="json") for s in sections]}
 
 
