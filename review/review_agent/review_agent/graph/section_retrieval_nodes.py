@@ -16,11 +16,10 @@ from review_agent.resilience.failed_sections import (
 )
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.async_limits import gather_limited
-from review_agent.services.multi_retrieval import _is_general_only, multi_retrieve_for_section
+from review_agent.services.multi_retrieval import multi_retrieve_for_section
 from review_agent.services.section_classifier import classify_all_sections
 from review_agent.services.section_cross_reference import resolve_all_related_sections
 from review_agent.services.section_filter import filter_review_sections
-from review_agent.services.section_gap_status import is_boilerplate_section
 from review_agent.state.review_state import ReviewState
 
 logger = logging.getLogger(__name__)
@@ -99,15 +98,6 @@ async def section_policy_retrieval_node(
         classification = classifications.get(section.section_id)
         if classification is not None and not classification.substantive:
             coros.append(None)
-            continue
-        if (
-            classification is not None
-            and settings.gap_boilerplate_skip_compare
-            and _is_general_only(classification.categories)
-            and is_boilerplate_section(section)
-        ):
-            coros.append(None)
-            boilerplate_skipped += 1
             continue
         coros.append(
             multi_retrieve_for_section(

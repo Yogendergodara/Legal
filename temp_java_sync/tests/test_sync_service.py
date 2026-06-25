@@ -97,6 +97,30 @@ def test_platform_payload_includes_policy_ids() -> None:
     assert "policy_document_ids" not in indexed
 
 
+def test_save_sync_result_writes_tenant_snapshot(tmp_path, monkeypatch) -> None:
+    import json
+
+    from sync_service import save_sync_result
+
+    monkeypatch.setattr("sync_service.OUTPUTS", tmp_path)
+    sync = {"tenant_id": "acme-nda-clean", "policies": [{"policy_ref": "p1"}]}
+    save_sync_result(sync)
+    assert (tmp_path / "sync_result.json").is_file()
+    tenant_path = tmp_path / "sync_acme-nda-clean.json"
+    assert tenant_path.is_file()
+    assert json.loads(tenant_path.read_text(encoding="utf-8"))["tenant_id"] == "acme-nda-clean"
+
+
+def test_build_assessment_uses_review_tenant_when_sync_missing() -> None:
+    from export_assessment import build_assessment
+
+    assessment = build_assessment(
+        {"findings": [], "tenant_id": "acme-nda-clean", "discovered_policy_document_ids": ["p1"]},
+        sync=None,
+    )
+    assert assessment["tenant_id"] == "acme-nda-clean"
+
+
 def test_infer_categories_from_filename() -> None:
     from upload_text import infer_categories_from_filename, read_upload_text
 

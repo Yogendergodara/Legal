@@ -78,8 +78,18 @@ def test_select_hits_fallback_primary_when_no_overlap():
         section_categories=["security"],
         settings=settings,
     )
-    assert len(selected) == 1
-    assert selected[0] is hits[0]
+    assert selected == []
+
+
+def test_select_hits_rejects_compliance_only_for_human_rights():
+    hits = [_policy_hit("Compliance policy text", categories=["compliance"], score=0.99)]
+    settings = ReviewSettings(compare_policy_hit_mode="category_aligned")
+    selected = select_compare_hits(
+        hits,
+        section_categories=["human_rights"],
+        settings=settings,
+    )
+    assert selected == []
 
 
 def test_primary_only_mode_returns_one_hit():
@@ -109,7 +119,7 @@ def test_filter_hits_for_compare_stats():
     )
     assert len(filtered["s1"]) == 1
     assert "Security" in filtered["s1"][0].parent_chunk.text
-    assert len(filtered["s2"]) == 1
+    assert len(filtered["s2"]) == 0
     assert stats["mode"] == "category_aligned"
     assert stats["category_aligned_sections"] == 1
     assert stats["fallback_primary_sections"] == 1

@@ -95,6 +95,15 @@ def _backfill_policy_ids(
     return item
 
 
+def _hit_categories(hit: RetrievalHit) -> list[str]:
+    raw = (hit.parent_chunk.metadata or {}).get("categories")
+    if isinstance(raw, list):
+        from document_core.schemas.taxonomy import normalize_categories
+
+        return normalize_categories([str(c) for c in raw])
+    return []
+
+
 def _format_sections_block(
     sections: list[IndexedChunk],
     hits_by_section: dict[str, list[RetrievalHit]],
@@ -102,15 +111,20 @@ def _format_sections_block(
     max_section_chars: int,
     playbook_hints_by_document: dict[str, PlaybookHints] | None = None,
     enrich_playbook: bool = True,
+    categories_by_section: dict[str, list[str]] | None = None,
 ) -> tuple[str, list[str]]:
     blocks: list[str] = []
     truncated_ids: list[str] = []
     hints_map = playbook_hints_by_document or {}
+    cats_map = categories_by_section or {}
     for section in sections:
         body = section.text or ""
         if len(body.strip()) > max_section_chars:
             truncated_ids.append(section.section_id)
         blocks.append(f"### Contract section: {section.section_id} — {section.title}")
+        section_cats = cats_map.get(section.section_id)
+        if section_cats:
+            blocks.append(f"- **Section categories:** {', '.join(section_cats)}")
         blocks.append(f"```\n{truncate_section(body, max_section_chars)}\n```")
         policy_hits = hits_by_section.get(section.section_id) or []
         if not policy_hits:
@@ -125,13 +139,16 @@ def _format_sections_block(
                 f"- **Policy {idx}** doc={parent.document_id} section={parent.section_id} "
                 f"title={parent.title}"
             )
+            blocks.append(header)
+            hit_cats = _hit_categories(hit)
+            if hit_cats:
+                blocks.append(f"- **Policy categories:** {', '.join(hit_cats)}")
             hint_block = ""
             if enrich_playbook:
                 hints = hints_map.get(str(parent.document_id))
                 if hints is None:
                     hints = hints_from_chunk_metadata(parent.metadata)
                 hint_block = format_playbook_hint_block(hints)
-            blocks.append(header)
             if hint_block:
                 blocks.append(hint_block)
             blocks.append(f"```\n{truncate_section(ptext, max_section_chars)}\n```")
@@ -237,6 +254,7 @@ async def _invoke_compare_batch(
     extra_user_context: str,
     cfg: ReviewSettings,
     playbook_hints_by_document: dict[str, PlaybookHints] | None,
+    categories_by_section: dict[str, list[str]] | None = None,
 ) -> BatchSectionCompareLLMResult:
     max_chars = cfg.section_compare_max_section_chars
     system_tpl, user_tpl = _load_prompt_template()
@@ -246,6 +264,7 @@ async def _invoke_compare_batch(
         max_section_chars=max_chars,
         playbook_hints_by_document=playbook_hints_by_document,
         enrich_playbook=cfg.playbook_enrich_compare,
+        categories_by_section=categories_by_section,
     )
 
     memory_block = ""
@@ -281,6 +300,7 @@ async def compare_section_batch(
     playbook_hints_by_document: dict[str, PlaybookHints] | None = None,
     quote_stats: dict[str, int] | None = None,
     related_by_section: dict | None = None,
+    categories_by_section: dict[str, list[str]] | None = None,
 ) -> tuple[list[SectionCompareItem], list[str]]:
     cfg = settings or get_settings()
     if not sections:
@@ -310,6 +330,7 @@ async def compare_section_batch(
         max_section_chars=max_chars,
         playbook_hints_by_document=playbook_hints_by_document,
         enrich_playbook=cfg.playbook_enrich_compare,
+        categories_by_section=categories_by_section,
     )
     if truncated_ids:
         unique = sorted(set(truncated_ids))
@@ -326,6 +347,7 @@ async def compare_section_batch(
             extra_user_context=related_context,
             cfg=cfg,
             playbook_hints_by_document=playbook_hints_by_document,
+            categories_by_section=categories_by_section,
         )
     except FatalPipelineError:
         raise
@@ -348,6 +370,7 @@ async def compare_section_batch(
                         extra_user_context=related_context,
                         cfg=cfg,
                         playbook_hints_by_document=playbook_hints_by_document,
+                        categories_by_section=categories_by_section,
                     )
                     retry_items.extend(single_result.items)
                 except FatalPipelineError:
@@ -393,6 +416,7 @@ async def compare_all_sections(
     playbook_hints_by_document: dict[str, PlaybookHints] | None = None,
     categories_by_section: dict[str, list[str]] | None = None,
     related_by_section: dict | None = None,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> tuple[list[SectionCompareItem], list[str], dict[str, int | float | str]]:
     cfg = settings or get_settings()
     hits_by_section = {s.section_id: bundles.get(s.section_id, []) for s in sections}
@@ -402,6 +426,7 @@ async def compare_all_sections(
         categories_by_section,
         section_titles_by_id=titles_by_section,
         settings=cfg,
+        doc_catalog_categories=doc_catalog_categories,
     )
 
     quote_stats: dict[str, int] = {}
@@ -423,6 +448,7 @@ async def compare_all_sections(
             playbook_hints_by_document=playbook_hints_by_document,
             quote_stats=quote_stats,
             related_by_section=related_by_section,
+            categories_by_section=categories_by_section,
         )
 
     results = await gather_limited(

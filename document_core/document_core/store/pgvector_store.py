@@ -19,6 +19,7 @@ from document_core.schemas.chunk import (
     IndexedChunk,
     SearchRequest,
 )
+from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
 from document_core.schemas.registry import PolicyRegistryRecord
 from document_core.search.lexical import score_query
 
@@ -147,16 +148,44 @@ class PgVectorDocumentStore:
                 ).scalar() or 0
 
             if existing_hash == content_hash and chunk_count > 0:
-                conn.execute(
-                    text(
-                        """
-                        UPDATE policy_documents
-                        SET index_status = 'indexed', indexed_at = now(), last_verified_at = now()
-                        WHERE tenant_id = :tenant_id AND document_id = :document_id
-                        """
-                    ),
-                    {"tenant_id": tenant_id, "document_id": document_id},
-                )
+                if kind == DocumentKind.POLICY and metadata.get("catalog_profile"):
+                    merged = json.dumps(metadata or {})
+                    conn.execute(
+                        text(
+                            """
+                            UPDATE policy_documents
+                            SET metadata = metadata || CAST(:metadata AS jsonb),
+                                index_status = 'indexed',
+                                indexed_at = now(),
+                                last_verified_at = now()
+                            WHERE tenant_id = :tenant_id AND document_id = :document_id
+                            """
+                        ),
+                        {
+                            "tenant_id": tenant_id,
+                            "document_id": document_id,
+                            "metadata": merged,
+                        },
+                    )
+                    self._upsert_policy_catalog_vector(
+                        conn,
+                        tenant_id=tenant_id,
+                        document_id=document_id,
+                        policy_ref=str(policy_ref or ""),
+                        title=title,
+                        metadata=metadata,
+                    )
+                else:
+                    conn.execute(
+                        text(
+                            """
+                            UPDATE policy_documents
+                            SET index_status = 'indexed', indexed_at = now(), last_verified_at = now()
+                            WHERE tenant_id = :tenant_id AND document_id = :document_id
+                            """
+                        ),
+                        {"tenant_id": tenant_id, "document_id": document_id},
+                    )
                 logger.debug(
                     "skip re-index unchanged document tenant=%s document_id=%s",
                     tenant_id,
@@ -289,6 +318,141 @@ class PgVectorDocumentStore:
                         "metadata": json.dumps(chunk.metadata or {}),
                     },
                 )
+
+            if kind == DocumentKind.POLICY and metadata.get("catalog_profile"):
+                self._upsert_policy_catalog_vector(
+                    conn,
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    policy_ref=str(policy_ref or ""),
+                    title=title,
+                    metadata=metadata,
+                )
+
+    def _upsert_policy_catalog_vector(
+        self,
+        conn,
+        *,
+        tenant_id: str,
+        document_id: UUID,
+        policy_ref: str,
+        title: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        raw_profile = metadata.get("catalog_profile")
+        if not isinstance(raw_profile, dict):
+            return
+        profile_text = str(raw_profile.get("profile_text") or "").strip()
+        if not profile_text:
+            profile_text = ". ".join(
+                p
+                for p in [title, str(raw_profile.get("summary") or "")]
+                if p
+            ).strip()
+        if not profile_text:
+            return
+        catalog_version = int(raw_profile.get("catalog_version") or 1)
+        embedding_literal: str | None = None
+        if embeddings_available():
+            vectors = embed_documents([profile_text])
+            if vectors:
+                embedding_literal = _vector_literal(vectors[0])
+        conn.execute(
+            text(
+                """
+                INSERT INTO policy_catalog_vectors (
+                    tenant_id, document_id, policy_ref, profile_text,
+                    embedding, catalog_version, updated_at
+                ) VALUES (
+                    :tenant_id, :document_id, :policy_ref, :profile_text,
+                    CASE WHEN :embedding IS NULL THEN NULL ELSE CAST(:embedding AS vector) END,
+                    :catalog_version, now()
+                )
+                ON CONFLICT (tenant_id, document_id) DO UPDATE SET
+                    policy_ref = EXCLUDED.policy_ref,
+                    profile_text = EXCLUDED.profile_text,
+                    embedding = EXCLUDED.embedding,
+                    catalog_version = EXCLUDED.catalog_version,
+                    updated_at = now()
+                """
+            ),
+            {
+                "tenant_id": tenant_id,
+                "document_id": document_id,
+                "policy_ref": policy_ref or None,
+                "profile_text": profile_text,
+                "embedding": embedding_literal,
+                "catalog_version": catalog_version,
+            },
+        )
+
+    def search_policy_catalog(
+        self,
+        request: CatalogSearchRequest,
+    ) -> list[CatalogSearchHit]:
+        params: dict[str, Any] = {
+            "tenant_id": request.tenant_id,
+            "query": request.query,
+            "limit": request.top_k,
+        }
+        doc_filter = ""
+        if request.document_ids:
+            params["document_ids"] = [str(doc_id) for doc_id in request.document_ids]
+            doc_filter = " AND pcv.document_id = ANY(CAST(:document_ids AS uuid[]))"
+
+        use_hybrid = embeddings_available()
+        query_vec = embed_query(request.query) if use_hybrid else None
+        if query_vec:
+            params["vec"] = _vector_literal(query_vec)
+            params["alpha"] = self._hybrid_alpha
+            sql = f"""
+                SELECT pcv.document_id, pcv.policy_ref, pd.title,
+                    (:alpha * (1 - (pcv.embedding <=> CAST(:vec AS vector)))
+                     + (1 - :alpha) * ts_rank(pcv.tsv, plainto_tsquery('english', :query))) AS score,
+                    COALESCE(pd.metadata->'catalog_profile'->>'summary', '') AS summary
+                FROM policy_catalog_vectors pcv
+                JOIN policy_documents pd
+                  ON pd.tenant_id = pcv.tenant_id AND pd.document_id = pcv.document_id
+                WHERE pcv.tenant_id = :tenant_id
+                  AND pd.index_status = 'indexed'
+                  AND pcv.embedding IS NOT NULL
+                  {doc_filter}
+                ORDER BY score DESC
+                LIMIT :limit
+            """
+        else:
+            sql = f"""
+                SELECT pcv.document_id, pcv.policy_ref, pd.title,
+                    ts_rank(pcv.tsv, plainto_tsquery('english', :query)) AS score,
+                    COALESCE(pd.metadata->'catalog_profile'->>'summary', '') AS summary
+                FROM policy_catalog_vectors pcv
+                JOIN policy_documents pd
+                  ON pd.tenant_id = pcv.tenant_id AND pd.document_id = pcv.document_id
+                WHERE pcv.tenant_id = :tenant_id
+                  AND pd.index_status = 'indexed'
+                  AND pcv.tsv @@ plainto_tsquery('english', :query)
+                  {doc_filter}
+                ORDER BY score DESC
+                LIMIT :limit
+            """
+
+        hits: list[CatalogSearchHit] = []
+        with self._engine.connect() as conn:
+            rows = conn.execute(text(sql), params).mappings()
+            for row in rows:
+                score = float(row["score"] or 0.0)
+                if score <= 0 and not query_vec:
+                    continue
+                hits.append(
+                    CatalogSearchHit(
+                        document_id=row["document_id"],
+                        policy_ref=str(row["policy_ref"] or ""),
+                        title=str(row["title"] or ""),
+                        score=score,
+                        summary=str(row["summary"] or ""),
+                    )
+                )
+        return hits
 
     def get_parents(self, tenant_id: str, document_id: UUID) -> list[IndexedChunk]:
         with self._engine.connect() as conn:

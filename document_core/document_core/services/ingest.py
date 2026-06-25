@@ -8,6 +8,7 @@ from document_core.parser.structured_sections import sections_to_tree
 from document_core.parser.text_parser import parse_text_to_tree
 from document_core.schemas.chunk import DocumentKind, IngestRequest, IngestResult, StructureConfidence, new_document_id
 from document_core.services.category_tagger import apply_keyword_tags, tag_policy_sections
+from document_core.services.policy_profiler import profile_policy_tree
 from document_core.store.memory_store import get_store
 from document_core.store.protocol import DocumentStore
 
@@ -54,6 +55,15 @@ async def ingest_document(
         else:
             apply_keyword_tags(tree, document_title=request.title)
             extra_meta = {"auto_tagged": True, "tagger": "keyword"}
+
+        if settings.policy_profiler_enabled and settings.policy_profiler_mode != "off":
+            profile, profiler_meta = await profile_policy_tree(
+                tree,
+                document_title=request.title,
+                settings=settings,
+            )
+            extra_meta["catalog_profile"] = profile.model_dump(mode="json")
+            extra_meta.update(profiler_meta)
 
     meta = {
         **request.metadata,

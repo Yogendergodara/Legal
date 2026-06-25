@@ -5,7 +5,9 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 
-_QUOTE_VALIDATE_DOWNGRADE = "Downgraded: model quotes were not exact substrings"
+from review_agent.services.quote_validate import QUOTE_VALIDATE_DOWNGRADE_MARKER
+
+_QUOTE_VALIDATE_DOWNGRADE = QUOTE_VALIDATE_DOWNGRADE_MARKER
 _STATUS_RANK = {
     "NON_COMPLIANT": 0,
     "INSUFFICIENT_POLICY_CONTEXT": 1,

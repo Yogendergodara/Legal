@@ -11,6 +11,7 @@ from review_agent.config import ReviewSettings, get_settings
 from review_agent.schemas.review_artifact import (
     ARTIFACT_VERSION,
     GapLlmAuditRow,
+    ObligationRoutingAuditRow,
     RetrievalAuditRow,
     RetrievalHitRef,
     ReviewArtifact,
@@ -100,6 +101,47 @@ def _build_discovery(state: ReviewState) -> dict[str, Any]:
         "discovery_warnings": list(state.get("discovery_warnings") or []),
         "indexed_policies": indexed,
     }
+
+
+def _build_obligation_routing(state: ReviewState) -> list[ObligationRoutingAuditRow]:
+    rows: list[ObligationRoutingAuditRow] = []
+    for finding in state.get("obligation_findings") or []:
+        if isinstance(finding, dict):
+            meta = dict(finding.get("metadata") or {})
+            audit = dict(meta.get("routing_audit") or {})
+        else:
+            meta = dict(getattr(finding, "metadata", None) or {})
+            audit = dict(meta.get("routing_audit") or {})
+        if not audit:
+            continue
+        rows.append(
+            ObligationRoutingAuditRow(
+                obligation_id=str(audit.get("obligation_id") or meta.get("obligation_id") or ""),
+                section_id=str(audit.get("section_id") or ""),
+                routing_source=str(audit.get("routing_source") or ""),
+                confidence=float(audit.get("routing_confidence") or 0.0),
+                candidate_doc_ids=[str(x) for x in (audit.get("candidate_doc_ids") or [])],
+                candidate_titles=[str(x) for x in (audit.get("candidate_titles") or [])],
+                evidence_decision=str(audit.get("evidence_decision") or ""),
+                evidence_reason=str(audit.get("evidence_reason") or ""),
+                queries_used=[str(x) for x in (audit.get("queries_used") or [])],
+                hit_count=int(audit.get("hit_count") or 0),
+            )
+        )
+    if rows:
+        return rows
+    for obligation_id, audit in (state.get("obligation_routing_by_id") or {}).items():
+        if not isinstance(audit, dict):
+            continue
+        rows.append(
+            ObligationRoutingAuditRow(
+                obligation_id=str(obligation_id),
+                section_id=str(audit.get("section_id") or ""),
+                routing_source=str(audit.get("routing_source") or ""),
+                confidence=float(audit.get("confidence") or 0.0),
+            )
+        )
+    return rows
 
 
 def _build_gap_llm(findings: list[ComplianceFinding]) -> list[GapLlmAuditRow]:
@@ -225,10 +267,13 @@ def build_review_artifact(
         for bundle in retrieval_by_id.values()
     ]
 
+    obligation_rows = _build_obligation_routing(state)
+    pipeline = "obligation_routing" if obligation_rows else "section_first"
+
     return ReviewArtifact(
         artifact_version=ARTIFACT_VERSION,
         run_id=str(state.get("thread_id") or ""),
-        pipeline="section_first",
+        pipeline=pipeline,
         generated_at=datetime.now(timezone.utc),
         tenant_id=str(state.get("tenant_id") or ""),
         contract_document_id=contract_document_id,
@@ -245,6 +290,7 @@ def build_review_artifact(
             "conflict_pairs": list(state.get("conflict_pairs") or []),
         },
         gap_llm=_build_gap_llm(final_findings),
+        obligation_routing=obligation_rows,
         superseded_finding_ids=superseded_finding_ids,
         final_verify_stats=final_verify_stats,
         section_coverage=section_coverage,

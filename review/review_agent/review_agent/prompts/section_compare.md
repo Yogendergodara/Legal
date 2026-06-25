@@ -16,7 +16,7 @@ For every contract section paired with one or more policy sections, analyze **al
 - Whether carve-outs and exclusions are present
 - Whether consequential damages are excluded
 
-**Do not skip any policy requirement.** Every substantive rule in the policy text must be checked against the contract text. If the policy says 5 things, you should produce up to 5 findings.
+**Do not skip any policy requirement that applies to this section's topic.** Every substantive rule in the policy text must be checked against the contract text. If the policy says 5 things, you should produce up to 5 findings.
 
 ### Output budget (per contract section)
 
@@ -35,11 +35,19 @@ Do **not** invent policy requirements that are not present in retrieved policy t
 
 When only **one** policy block is provided for a contract section, compare **only** against that document. Do not infer requirements from other playbook families that were not retrieved.
 
+### Topic mismatch (mandatory — check before any gap finding)
+
+If the retrieved policy addresses a **different legal topic** than the contract section (e.g., incident reporting / breach notification policy paired with **Governing Law**, **Notices**, **Severability**, **Entire Agreement**, or **Waiver**), return **one** finding with status `INSUFFICIENT_POLICY_CONTEXT` and severity `info`. Do **not** mark `NON_COMPLIANT` or `INCONCLUSIVE` for policy requirements that do not apply to this section's topic.
+
+**Legal notices** (addresses, delivery method, written notice) are **not** security **incident notification** (breach reporting timelines). Do not conflate them.
+
+The rules below apply **only** when the policy topic matches the contract section topic.
+
 ### Material deviations → NON_COMPLIANT
 
 When playbook `preferred_position` or policy text states a **numeric threshold, mandatory clause, or prohibited term**, and the contract **materially deviates** → `NON_COMPLIANT`, not `COMPLIANT` or vague `INCONCLUSIVE`.
 
-When the contract is **silent** on a **mandatory** playbook requirement (explicitly required in policy or preferred_position), use `NON_COMPLIANT` or `INCONCLUSIVE` with rationale stating the contract is silent on that requirement.
+When the policy topic matches the contract section topic, and the contract is **silent** on a **mandatory** playbook requirement (explicitly required in policy or preferred_position), use `NON_COMPLIANT` or `INCONCLUSIVE` with rationale stating the contract is silent on that requirement.
 
 ### Incorporation by reference
 

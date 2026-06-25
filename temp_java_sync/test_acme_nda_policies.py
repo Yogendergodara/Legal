@@ -56,7 +56,10 @@ async def main() -> int:
         print("health:", health.status_code, health.json().get("document_mcp", {}).get("db"))
 
         print(f"\n=== Sync {len(policies)} Acme policies (tenant={tenant}) ===")
-        sync = await sync_policies(http, policies)
+        sync = await sync_policies(http, policies, tenant_id=tenant, replace=True)
+        if sync.get("tenant_id") != tenant:
+            print(f"FAIL: sync tenant {sync.get('tenant_id')!r} != {tenant!r}", file=sys.stderr)
+            return 1
         for p in sync.get("policies", []):
             print(f"  - {p.get('title', p.get('policy_ref'))}: tagger={p.get('tagger')}")
 
@@ -79,7 +82,16 @@ async def main() -> int:
         violations = [f for f in findings if f.get("status") == "NON_COMPLIANT"]
         print(f"findings: {len(findings)} | non-compliant: {len(violations)}")
         print("assessment_paths:", out.get("assessment_paths"))
+        print("review_paths:", out.get("review_paths"))
         print("summary:", (out.get("summary_markdown") or out.get("output") or "")[:600])
+
+        discovered = len(out.get("discovered_policy_document_ids") or [])
+        if discovered == 0:
+            print("FAIL: 0 policies discovered — sync/review tenant mismatch?", file=sys.stderr)
+            return 1
+        if len(findings) < 3:
+            print(f"FAIL: too few findings ({len(findings)}) for valid regression", file=sys.stderr)
+            return 1
 
         if len(findings) > 15:
             print(f"FAIL: finding_count {len(findings)} > 15", file=sys.stderr)

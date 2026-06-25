@@ -1,0 +1,46 @@
+{
+  "tenant_id": "weird-tenant",
+  "catalog_version": "weird-v1",
+  "policies": [
+    {
+      "document_id": "a1000001-0000-4000-8000-000000000001",
+      "policy_ref": "cyber-defense-manual",
+      "title": "Cyber Defense Manual",
+      "aliases": ["Cyber Defense Manual", "CDM"],
+      "topics": ["incident", "breach", "cyber", "defense"],
+      "summary": "Non-standard incident and cyber defense procedures."
+    },
+    {
+      "document_id": "a1000001-0000-4000-8000-000000000002",
+      "policy_ref": "people-guidelines",
+      "title": "People Guidelines v3",
+      "aliases": ["People Guidelines"],
+      "topics": ["conduct", "workplace"],
+      "summary": "Internal people and workplace guidelines."
+    },
+    {
+      "document_id": "a1000001-0000-4000-8000-000000000003",
+      "policy_ref": "info-lifecycle",
+      "title": "Information Lifecycle Standard",
+      "aliases": ["Information Lifecycle Standard"],
+      "topics": ["retention", "deletion", "archival"],
+      "summary": "Information retention and disposal standard."
+    },
+    {
+      "document_id": "a1000001-0000-4000-8000-000000000004",
+      "policy_ref": "trust-center",
+      "title": "Trust Center FAQ",
+      "aliases": ["Trust Center FAQ"],
+      "topics": ["security", "faq"],
+      "summary": "Customer-facing security FAQ."
+    },
+    {
+      "document_id": "a1000001-0000-4000-8000-000000000005",
+      "policy_ref": "vendor-rules",
+      "title": "Vendor Rules Appendix",
+      "aliases": ["Vendor Rules"],
+      "topics": ["vendor", "third party"],
+      "summary": "Third-party vendor obligations."
+    }
+  ]
+}

@@ -24,6 +24,7 @@ from document_core.schemas.chunk import (
     IndexedChunk,
     SearchRequest,
 )
+from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
 from document_core.schemas.registry import PolicyRegistryRecord
 from document_core.store.pgvector_store import PgVectorDocumentStore
 
@@ -331,3 +332,9 @@ class AsyncDocumentStoreAdapter:
                 kind=kind,
             ),
         )
+
+    async def search_policy_catalog_async(
+        self,
+        request: CatalogSearchRequest,
+    ) -> list[CatalogSearchHit]:
+        return await asyncio.to_thread(self._sync.search_policy_catalog, request)

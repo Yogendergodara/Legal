@@ -1,0 +1,397 @@
+[
+  {
+    "obligation_id": "10.1-o0",
+    "section_id": "10.1",
+    "text": "This Agreement shall be governed by the laws of Wyoming.",
+    "is_boilerplate": true,
+    "explicit_policy_mentions": [],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "forbidden_doc_titles": ["Incident Response"],
+    "expect_retrieval": "skip_ipc",
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "10.5-o0",
+    "section_id": "10.5",
+    "text": "All notices shall be in writing and delivered to the addresses set forth herein.",
+    "is_boilerplate": true,
+    "explicit_policy_mentions": [],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "forbidden_doc_titles": ["Incident Response"],
+    "expect_retrieval": "skip_ipc",
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "2.3-o0",
+    "section_id": "2.3",
+    "text": "Receiving Party shall implement security measures consistent with Xecurify's Security Practices Policy.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": ["Security Practices Policy"],
+    "expected_alias_hit": true,
+    "expected_candidate_count": 1,
+    "expected_doc_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051",
+    "expect_retrieval": "hits_in_doc",
+    "expected_doc_title": "Security Practices Policy",
+    "mock_retrieval_hits": [
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "score": 0.88, "title": "Security Practices Policy", "text": "security measures encryption access control"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "2.3-o1",
+    "section_id": "2.3",
+    "text": "Notify customer within 8 hours of a security incident.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "security incident customer notification",
+      "concepts": ["incident", "notification", "breach"],
+      "search_queries": ["incident notification timeline", "breach customer notify"],
+      "confidence": 0.92
+    },
+    "mock_catalog_hits": [
+      {"document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28", "title": "Incident Response Plan", "score": 0.91},
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "title": "Security Practices Policy", "score": 0.55}
+    ],
+    "expected_candidate_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "mock_retrieval_hits": [
+      {"document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28", "score": 0.86, "title": "Incident Response Plan", "text": "notify customer within 8 hours security incident"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "3.1-o0",
+    "section_id": "3.1",
+    "text": "Recipient shall comply with Xecurify's Data Retention Policy, including retention schedules.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": ["Data Retention Policy"],
+    "expected_alias_hit": true,
+    "expected_candidate_count": 1,
+    "expected_doc_id": "c8ccd775-368f-564a-a0f0-771684775143",
+    "mock_retrieval_hits": [
+      {"document_id": "c8ccd775-368f-564a-a0f0-771684775143", "score": 0.9, "title": "Data Retention Policy", "text": "retention schedules criteria deletion"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "3.2-o0",
+    "section_id": "3.2",
+    "text": "Recipient shall securely delete confidential data per retention and deletion requirements.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "secure deletion data retention",
+      "concepts": ["retention", "deletion", "secure deletion"],
+      "search_queries": ["secure deletion requirements", "data retention deletion"],
+      "confidence": 0.88
+    },
+    "mock_catalog_hits": [
+      {"document_id": "c8ccd775-368f-564a-a0f0-771684775143", "title": "Data Retention Policy", "score": 0.87}
+    ],
+    "expected_candidate_doc_ids": ["c8ccd775-368f-564a-a0f0-771684775143"],
+    "mock_retrieval_hits": [
+      {"document_id": "c8ccd775-368f-564a-a0f0-771684775143", "score": 0.82, "title": "Data Retention Policy", "text": "secure deletion dispose of data"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "5.2-o0",
+    "section_id": "5.2",
+    "text": "Parties shall respect human rights in performance of this Agreement.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "human rights compliance",
+      "concepts": ["human rights", "conduct"],
+      "search_queries": ["human rights workplace", "code of conduct human rights"],
+      "confidence": 0.86
+    },
+    "mock_catalog_hits": [
+      {"document_id": "5be4e755-519b-5b00-ab48-c409f61b31af", "title": "Xecurify Code of Conduct", "score": 0.84}
+    ],
+    "expected_candidate_doc_ids": ["5be4e755-519b-5b00-ab48-c409f61b31af"],
+    "mock_retrieval_hits": [
+      {"document_id": "5be4e755-519b-5b00-ab48-c409f61b31af", "score": 0.8, "title": "Xecurify Code of Conduct", "text": "human rights ethical standards"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "5.5-o0",
+    "section_id": "5.5",
+    "text": "Recipient warrants compliance with modern slavery and human trafficking laws.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "modern slavery compliance",
+      "concepts": ["modern slavery", "human trafficking", "conduct"],
+      "search_queries": ["modern slavery policy", "code of conduct slavery"],
+      "confidence": 0.85
+    },
+    "mock_catalog_hits": [
+      {"document_id": "5be4e755-519b-5b00-ab48-c409f61b31af", "title": "Xecurify Code of Conduct", "score": 0.83}
+    ],
+    "expected_candidate_doc_ids": ["5be4e755-519b-5b00-ab48-c409f61b31af"],
+    "mock_retrieval_hits": [
+      {"document_id": "5be4e755-519b-5b00-ab48-c409f61b31af", "score": 0.79, "title": "Xecurify Code of Conduct", "text": "modern slavery human trafficking"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "2.1-o0",
+    "section_id": "2.1",
+    "text": "Receiving Party shall keep Confidential Information strictly confidential.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "confidentiality obligation",
+      "concepts": ["confidentiality", "nda"],
+      "search_queries": ["confidential information handling"],
+      "confidence": 0.45
+    },
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "2.1-o1",
+    "section_id": "2.1",
+    "text": "Processing of personal data shall follow Xecurify Privacy Policy.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": ["Privacy Policy"],
+    "expected_alias_hit": true,
+    "expected_candidate_count": 1,
+    "expected_doc_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5",
+    "mock_retrieval_hits": [
+      {"document_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5", "score": 0.87, "title": "Privacy Policy", "text": "personal data processing privacy"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "10.6-o0",
+    "section_id": "10.6",
+    "text": "This Agreement may be terminated upon thirty days written notice.",
+    "is_boilerplate": true,
+    "explicit_policy_mentions": [],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_retrieval": "skip_ipc",
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "11-o0",
+    "section_id": "11",
+    "text": "Data subjects may exercise rights under applicable privacy laws.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "data subject rights",
+      "concepts": ["data subject rights", "privacy"],
+      "search_queries": ["data subject rights request"],
+      "confidence": 0.55
+    },
+    "mock_catalog_hits": [
+      {"document_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5", "title": "Privacy Policy", "score": 0.7}
+    ],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "4.1-o0",
+    "section_id": "4.1",
+    "text": "Recipient shall process personal data only per documented instructions.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "personal data processing instructions",
+      "concepts": ["personal data", "processing", "privacy"],
+      "search_queries": ["personal data processing policy"],
+      "confidence": 0.9
+    },
+    "mock_catalog_hits": [
+      {"document_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5", "title": "Privacy Policy", "score": 0.89}
+    ],
+    "expected_candidate_doc_ids": ["3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5"],
+    "mock_retrieval_hits": [
+      {"document_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5", "score": 0.85, "title": "Privacy Policy", "text": "process personal data documented instructions"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "6.1-o0",
+    "section_id": "6.1",
+    "text": "Security incidents shall be handled per Incident Response Plan.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": ["Incident Response Plan"],
+    "expected_alias_hit": true,
+    "expected_candidate_count": 1,
+    "expected_doc_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28",
+    "mock_retrieval_hits": [
+      {"document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28", "score": 0.9, "title": "Incident Response Plan", "text": "security incident response procedures"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "7.1-o0",
+    "section_id": "7.1",
+    "text": "Export-controlled technology shall not be transferred without authorization.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "export control",
+      "concepts": ["export", "technology transfer"],
+      "search_queries": ["export control technology"],
+      "confidence": 0.35
+    },
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "8.1-o0",
+    "section_id": "8.1",
+    "text": "Recipient shall permit reasonable audit of security controls annually.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "security audit rights",
+      "concepts": ["audit", "security controls"],
+      "search_queries": ["security audit controls"],
+      "confidence": 0.82
+    },
+    "mock_catalog_hits": [
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "title": "Security Practices Policy", "score": 0.78}
+    ],
+    "expected_candidate_doc_ids": ["cb031cc8-f40e-58e7-87bb-7a315dc61051"],
+    "mock_retrieval_hits": [
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "score": 0.76, "title": "Security Practices Policy", "text": "audit security controls annually"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "9.1-o0",
+    "section_id": "9.1",
+    "text": "Each party indemnifies the other for third-party claims arising from breach.",
+    "is_boilerplate": true,
+    "explicit_policy_mentions": [],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "1.1-o0",
+    "section_id": "1.1",
+    "text": "Confidential Information means information disclosed under this Agreement.",
+    "is_boilerplate": true,
+    "explicit_policy_mentions": [],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "tie-alias-o0",
+    "section_id": "2.4",
+    "text": "Follow Security Practices Policy and Privacy Policy requirements.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": ["Security Practices Policy", "Privacy Policy"],
+    "expected_route_decision": "ipc",
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "fence-o0",
+    "section_id": "2.5",
+    "text": "Notify authorities of material security breaches without undue delay.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "breach authority notification",
+      "concepts": ["breach", "notification", "incident"],
+      "search_queries": ["breach notification authority"],
+      "confidence": 0.91
+    },
+    "mock_catalog_hits": [
+      {"document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28", "title": "Incident Response Plan", "score": 0.9},
+      {"document_id": "00000000-0000-4000-8000-000000009999", "title": "Foreign IR Plan", "score": 0.95}
+    ],
+    "expected_candidate_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "mock_retrieval_hits": [
+      {"document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28", "score": 0.84, "title": "Incident Response Plan", "text": "notify authorities breach without undue delay"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "syn-cdm-o0",
+    "section_id": "s1",
+    "text": "Report cyber incidents per organizational standards within 4 hours.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "catalog_fixture": "synthetic_weird_catalog.json",
+    "mock_planner": {
+      "intent": "cyber incident reporting",
+      "concepts": ["incident", "cyber", "breach"],
+      "search_queries": ["cyber incident reporting", "breach response"],
+      "confidence": 0.9
+    },
+    "mock_catalog_hits": [
+      {"document_id": "a1000001-0000-4000-8000-000000000001", "title": "Cyber Defense Manual", "score": 0.92}
+    ],
+    "expected_candidate_doc_ids": ["a1000001-0000-4000-8000-000000000001"],
+    "mock_retrieval_hits": [
+      {"document_id": "a1000001-0000-4000-8000-000000000001", "score": 0.88, "title": "Cyber Defense Manual", "text": "cyber incident report within 4 hours"}
+    ],
+    "expect_evidence_decision": "compare"
+  },
+  {
+    "obligation_id": "syn-empty-o0",
+    "section_id": "s2",
+    "text": "Comply with vendor onboarding checklist requirements.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "catalog_fixture": "synthetic_weird_catalog.json",
+    "mock_planner": {
+      "intent": "vendor onboarding",
+      "concepts": ["vendor", "onboarding"],
+      "search_queries": ["vendor onboarding checklist"],
+      "confidence": 0.5
+    },
+    "mock_catalog_hits": [],
+    "expected_route_decision": "ipc",
+    "expect_evidence_decision": "ipc",
+    "expect_finding_status": "INSUFFICIENT_POLICY_CONTEXT"
+  },
+  {
+    "obligation_id": "2.3-o2",
+    "section_id": "2.3",
+    "text": "Maintain logs of access to production systems for ninety days.",
+    "is_boilerplate": false,
+    "explicit_policy_mentions": [],
+    "mock_planner": {
+      "intent": "access logging retention",
+      "concepts": ["logging", "access", "retention"],
+      "search_queries": ["access log retention", "security logging"],
+      "confidence": 0.87
+    },
+    "mock_catalog_hits": [
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "title": "Security Practices Policy", "score": 0.8},
+      {"document_id": "c8ccd775-368f-564a-a0f0-771684775143", "title": "Data Retention Policy", "score": 0.75}
+    ],
+    "expected_candidate_doc_ids": ["cb031cc8-f40e-58e7-87bb-7a315dc61051", "c8ccd775-368f-564a-a0f0-771684775143"],
+    "forbidden_doc_ids": ["29356d10-36dc-5ef8-8cf1-a2948f7c2e28"],
+    "mock_retrieval_hits": [
+      {"document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051", "score": 0.81, "title": "Security Practices Policy", "text": "access logs production systems ninety days"}
+    ],
+    "expect_evidence_decision": "compare"
+  }
+]

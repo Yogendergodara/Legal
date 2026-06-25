@@ -15,6 +15,7 @@ from review_agent.services.policy_discovery import (
     seed_discovered_from_scope,
 )
 from review_agent.services.section_coverage import reviewable_sections
+from review_agent.services.routing_tenant import obligation_routing_active
 from review_agent.state.review_state import ReviewState
 
 logger = logging.getLogger(__name__)
@@ -109,6 +110,17 @@ async def policy_discovery_node(state: ReviewState, client: DocumentMCPClient) -
             )
 
     indexed_entries = discovered_to_indexed_entries(discovered)
+    if obligation_routing_active(state["tenant_id"], settings):
+        routing_candidates = [
+            str(doc_id).strip()
+            for doc_id in (state.get("obligation_routing_candidate_doc_ids") or [])
+            if str(doc_id).strip()
+        ]
+        if routing_candidates:
+            if scope_ids:
+                scope_set = {str(doc_id).strip() for doc_id in scope_ids}
+                routing_candidates = [doc_id for doc_id in routing_candidates if doc_id in scope_set]
+            doc_ids = list(dict.fromkeys(list(doc_ids) + routing_candidates))
     return {
         "discovered_policies": [p.model_dump(mode="json") for p in discovered],
         "discovered_policy_document_ids": doc_ids,

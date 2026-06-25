@@ -344,6 +344,7 @@ async def test_contract_type_fallback_niche():
                 text="1. Limitation of Liability\nFees paid in twelve months.",
                 categories=["liability"],
             )
+        )
         await client.index_policy(
             IngestRequest(
                 tenant_id="demo",

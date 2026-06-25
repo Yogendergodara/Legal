@@ -77,15 +77,18 @@ class ReviewSettings(BaseSettings):
     retrieval_max_attempts: int = 3
     retrieval_broaden_on_retry: bool = True
     retrieval_category_hard_filter: bool = True
-    retrieval_category_filter_fallback: bool = True
+    retrieval_category_filter_fallback: bool = False
     retrieval_skip_hard_filter_for_general: bool = True
     retrieval_max_hits_per_document: int = 3
     named_policy_routing_enabled: bool = True
     retrieval_relevance_gate_enabled: bool = True
     retrieval_relevance_min_score: float = 0.2
+    retrieval_relevance_keep_best_fallback: bool = False
     policy_coverage_enabled: bool = True
     policy_coverage_min_score: float = 0.34
+    policy_coverage_require_specific_overlap: bool = True
     incorporation_guard_enabled: bool = True
+    topic_mismatch_guard_enabled: bool = True
     equivalence_guard_enabled: bool = True
     finding_dedupe_topic_cluster: bool = True
     retrieval_category_min_overlap: int = 0
@@ -100,6 +103,7 @@ class ReviewSettings(BaseSettings):
     compare_policy_hit_mode: Literal["all_top_k", "category_aligned", "primary_only"] = "category_aligned"
     compare_max_policy_hits: int = 2
     compare_hit_min_relevance_score: float = 0.35
+    compare_hit_allow_primary_fallback: bool = False
     compare_batch_retry_single: bool = True
     compare_quote_anchor_enabled: bool = True
 
@@ -133,6 +137,50 @@ class ReviewSettings(BaseSettings):
     artifact_max_hit_refs_per_section: int = 10
     report_llm_summary: bool = False
     report_llm_summary_max_tokens: int = 256
+
+    obligation_routing_enabled: bool = False
+    obligation_extract_enabled: bool = True
+    obligation_extract_batch_size: int = 3
+    obligation_extract_max_section_chars: int = 8000
+
+    semantic_planner_enabled: bool = True
+    semantic_planner_batch_size: int = 5
+    semantic_planner_max_obligation_chars: int = 1500
+    routing_alias_min_score: float = 0.92
+    routing_compare_min_confidence: float = 0.85
+    routing_ipc_max_confidence: float = 0.60
+
+    catalog_match_top_k: int = 8
+    catalog_match_max_candidates: int = 5
+    catalog_match_min_score: float = 0.25
+
+    obligation_retrieval_enabled: bool = True
+    obligation_retrieval_concurrency: int = 4
+    obligation_retrieval_max_queries: int = 3
+    obligation_retrieval_union_top_k: int = 12
+
+    evidence_sufficiency_enabled: bool = True
+    evidence_min_hits: int = 1
+    evidence_min_score: float = 0.35
+    evidence_min_concept_overlap: float = 0.25
+    evidence_min_doc_coverage: float = 0.0
+    evidence_expand_max_rounds: int = 1
+    evidence_expand_broaden_mode: Literal["concepts", "catalog_neighbor", "both"] = "concepts"
+    evidence_expand_max_extra_docs: int = 2
+
+    obligation_compare_enabled: bool = True
+    obligation_compare_batch_size: int = 4
+    obligation_compare_max_obligation_chars: int = 2000
+    obligation_section_cutover_mode: Literal["skip", "legacy_parallel"] = "skip"
+
+    routing_cache_enabled: bool = True
+    routing_cache_ttl_seconds: int = 300
+    routing_plan_cache_max_entries: int = 500
+    max_obligations_per_review: int = 80
+    max_planner_calls_per_review: int = 40
+    max_catalog_search_calls_per_review: int = 120
+    obligation_routing_tenant_allowlist: str = ""
+    obligation_routing_tenant_denylist: str = ""
 
     guard_pass_enabled: bool = True
     guard_pass_mode: Literal["llm"] = "llm"

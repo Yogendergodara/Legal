@@ -9,7 +9,8 @@ from document_core.schemas.compliance import ComplianceStatus, Severity
 from review_agent.config import ReviewSettings, get_settings
 from review_agent.schemas.section_compare import SectionCompareItem
 from review_agent.services.retrieval_relevance import (
-    filter_hits_by_relevance,
+    coverage_block_reason,
+    filter_on_topic_hits,
     score_hit_relevance,
 )
 
@@ -24,52 +25,53 @@ class SectionCoverageResult:
     reason: str = ""
 
 
+def _relevance_floor(cfg: ReviewSettings) -> float:
+    return max(cfg.retrieval_relevance_min_score, cfg.compare_hit_min_relevance_score)
+
+
 def validate_section_coverage(
     section: IndexedChunk,
     hits: list[RetrievalHit],
     *,
     section_categories: list[str],
     settings: ReviewSettings | None = None,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> SectionCoverageResult:
     """Score whether retrieved policies match the contract section topic."""
     cfg = settings or get_settings()
     sid = section.section_id
+    section_title = section.title or sid
     if not hits:
         return SectionCoverageResult(section_id=sid, coverage_score=0.0, insufficient=False)
 
-    relevant, dropped = filter_hits_by_relevance(
+    floor = _relevance_floor(cfg)
+    relevant, dropped, block_reason = filter_on_topic_hits(
         hits,
         section_categories=section_categories,
-        section_title=section.title or sid,
-        min_score=cfg.retrieval_relevance_min_score,
+        section_title=section_title,
+        min_score=floor,
+        doc_catalog_categories=doc_catalog_categories,
+        keep_best_fallback=cfg.retrieval_relevance_keep_best_fallback,
+        require_specific_overlap=cfg.policy_coverage_require_specific_overlap,
     )
-    if relevant and len(hits) == 1:
-        only_score = score_hit_relevance(
-            relevant[0],
-            section_categories=section_categories,
-            section_title=section.title or sid,
-        )
-        if only_score < cfg.retrieval_relevance_min_score:
-            return SectionCoverageResult(
-                section_id=sid,
-                relevant_hits=[],
-                dropped_hits=hits,
-                coverage_score=0.0,
-                insufficient=True,
-                reason="single_off_topic_hit",
-            )
-
-    score = len(relevant) / max(len(hits), 1)
 
     if not relevant:
+        reason = block_reason or coverage_block_reason(
+            section_categories,
+            section_title,
+            hits,
+            doc_catalog_categories=doc_catalog_categories,
+        )
         return SectionCoverageResult(
             section_id=sid,
             relevant_hits=[],
             dropped_hits=hits,
             coverage_score=0.0,
             insufficient=True,
-            reason="no_relevant_policy_hits",
+            reason=reason,
         )
+
+    score = len(relevant) / max(len(hits), 1)
 
     if score < cfg.policy_coverage_min_score and len(dropped) > 0:
         doc_ids = {str(h.parent_chunk.document_id) for h in hits}
@@ -116,6 +118,7 @@ def apply_coverage_gate(
     categories_by_section: dict[str, list[str]],
     *,
     settings: ReviewSettings | None = None,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, list[RetrievalHit]], list[SectionCompareItem], list[str]]:
     """Filter hits per section; emit IPC items when coverage is too low."""
     cfg = settings or get_settings()
@@ -137,6 +140,7 @@ def apply_coverage_gate(
             hits,
             section_categories=categories_by_section.get(sid, []),
             settings=cfg,
+            doc_catalog_categories=doc_catalog_categories,
         )
         if result.insufficient:
             ipc_items.append(_ipc_item(section, result))
@@ -189,4 +193,4 @@ def filter_doc_ids_by_category_overlap(
         policy_cats = _specific_categories(catalog_categories.get(key, []))
         if len(section_specific & policy_cats) >= min_overlap:
             kept.append(doc_id)
-    return kept if kept else list(doc_ids)
+    return kept

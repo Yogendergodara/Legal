@@ -576,6 +576,10 @@ def _build_sync_payload(
 
 def save_sync_result(sync: dict[str, Any]) -> Path:
     OUTPUTS.mkdir(exist_ok=True)
+    payload = json.dumps(sync, indent=2)
     path = OUTPUTS / "sync_result.json"
-    path.write_text(json.dumps(sync, indent=2), encoding="utf-8")
+    path.write_text(payload, encoding="utf-8")
+    tenant = str(sync.get("tenant_id") or "").strip()
+    if tenant:
+        (OUTPUTS / f"sync_{tenant}.json").write_text(payload, encoding="utf-8")
     return path

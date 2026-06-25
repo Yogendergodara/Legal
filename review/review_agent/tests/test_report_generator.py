@@ -17,6 +17,9 @@ def test_render_markdown_includes_summary_and_ops():
         contract_title="MSA",
         sections=[SectionAuditRow(section_id="s1", title="Liability")],
         discovery={"discovered_policy_document_ids": ["p1", "p2"]},
+        compliance_stats={
+            "review_confidence": {"downgrade_quote_validate": 2},
+        },
         ops=ReviewArtifactOps(
             retrieval_retry_sections=3,
             backfill_count=1,
@@ -43,6 +46,8 @@ def test_render_markdown_includes_summary_and_ops():
     )
     md = render_markdown_report(report, artifact=artifact)
     assert "## Executive summary" in md
+    assert "downgraded at compare quote validate" in md
+    assert "**2** finding(s) downgraded at compare quote validate" in md
     assert "## Pipeline operations" in md
     assert "Retrieval retries (sections) | 3" in md
     assert "Playbook compare findings | 4" in md

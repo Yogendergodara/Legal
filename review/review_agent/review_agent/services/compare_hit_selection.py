@@ -7,7 +7,11 @@ from typing import Literal
 from document_core.schemas.chunk import RetrievalHit
 from document_core.schemas.taxonomy import normalize_categories
 from review_agent.config import ReviewSettings, get_settings
-from review_agent.services.retrieval_relevance import score_hit_relevance
+from review_agent.services.retrieval_relevance import (
+    _specific_categories,
+    filter_on_topic_hits,
+    has_specific_category_overlap,
+)
 
 ComparePolicyHitMode = Literal["all_top_k", "category_aligned", "primary_only"]
 
@@ -27,6 +31,7 @@ def select_compare_hits(
     section_categories: list[str],
     section_title: str = "",
     settings: ReviewSettings | None = None,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> list[RetrievalHit]:
     """Return policy hits to include in compare prompt (post-rerank order preserved)."""
     cfg = settings or get_settings()
@@ -42,28 +47,17 @@ def select_compare_hits(
         return hits[:cap]
 
     cap = max(1, cfg.compare_max_policy_hits)
-    section_cats = set(normalize_categories(section_categories or []))
-    if section_cats:
-        aligned = [h for h in hits if section_cats.intersection(_hit_categories(h))]
-        if aligned:
-            scored = [
-                (
-                    hit,
-                    score_hit_relevance(
-                        hit,
-                        section_categories=section_categories,
-                        section_title=section_title,
-                    ),
-                )
-                for hit in aligned
-            ]
-            min_score = cfg.compare_hit_min_relevance_score
-            filtered = [(hit, score) for hit, score in scored if score >= min_score]
-            if filtered:
-                filtered.sort(key=lambda pair: pair[1], reverse=True)
-                return [hit for hit, _ in filtered[:cap]]
-            return hits[:1]
-    return hits[:1]
+    require_overlap = bool(_specific_categories(section_categories))
+    relevant, _dropped, _reason = filter_on_topic_hits(
+        hits,
+        section_categories=section_categories,
+        section_title=section_title,
+        min_score=cfg.compare_hit_min_relevance_score,
+        doc_catalog_categories=doc_catalog_categories,
+        keep_best_fallback=cfg.compare_hit_allow_primary_fallback,
+        require_specific_overlap=require_overlap,
+    )
+    return relevant[:cap]
 
 
 def filter_hits_for_compare(
@@ -72,6 +66,7 @@ def filter_hits_for_compare(
     *,
     section_titles_by_id: dict[str, str] | None = None,
     settings: ReviewSettings | None = None,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, list[RetrievalHit]], dict[str, int | float | str]]:
     """Filter each section's hits; return stats for ops metadata."""
     cfg = settings or get_settings()
@@ -91,16 +86,26 @@ def filter_hits_for_compare(
             section_categories=section_cats,
             section_title=titles.get(section_id, section_id),
             settings=cfg,
+            doc_catalog_categories=doc_catalog_categories,
         )
         hits_out += len(selected)
         if not hits:
             filtered[section_id] = []
             continue
         if cfg.compare_policy_hit_mode == "category_aligned" and section_cats:
-            section_cat_set = set(normalize_categories(section_cats))
-            if any(section_cat_set.intersection(_hit_categories(h)) for h in selected):
+            if selected and (
+                not _specific_categories(section_cats)
+                or any(
+                    has_specific_category_overlap(
+                        section_cats,
+                        h,
+                        doc_catalog_categories=doc_catalog_categories,
+                    )
+                    for h in selected
+                )
+            ):
                 category_aligned += 1
-            else:
+            elif hits and not selected:
                 fallback_primary += 1
         filtered[section_id] = selected
 

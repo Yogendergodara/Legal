@@ -17,14 +17,17 @@ async def sync_policies(
     http: httpx.AsyncClient,
     policies: list[dict[str, Any]],
     *,
+    tenant_id: str | None = None,
     tenant_shared: bool = True,
     replace: bool = True,
 ) -> dict[str, Any]:
-    body = {
+    body: dict[str, Any] = {
         "policies": policies,
         "use_shared_tenant": tenant_shared,
         "replace_tenant_policies": replace,
     }
+    if tenant_id:
+        body["tenant_id"] = tenant_id
     response = await http.post(f"{DEV_UI_BASE}/api/sync-policies", json=body)
     response.raise_for_status()
     return response.json()

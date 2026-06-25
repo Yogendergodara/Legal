@@ -24,6 +24,7 @@ from review_agent.services.policy_coverage import (
     catalog_doc_categories,
     filter_doc_ids_by_category_overlap,
 )
+from review_agent.services.policy_coverage import catalog_doc_categories
 from review_agent.services.retrieval_relevance import filter_hits_by_relevance
 from review_agent.services.section_classifier import classify_section_policies
 
@@ -168,11 +169,12 @@ async def _resolve_filter_document_ids(
         filter_meta["category_filter_document_ids"] = [str(doc_id) for doc_id in category_ids]
 
     if category_hard_filter and categories and not category_ids:
-        if cfg.retrieval_category_filter_fallback:
+        if cfg.retrieval_category_filter_fallback and _is_general_only(categories):
             filter_meta["category_filter_skipped"] = "no category matches"
             if scope_set:
                 return [UUID(doc_id) for doc_id in scope_set], filter_meta
             return None, filter_meta
+        filter_meta["skipped_reason"] = "no_indexed_playbook_for_categories"
         return [], filter_meta
 
     doc_ids = list(category_ids)
@@ -195,16 +197,20 @@ async def _resolve_filter_document_ids(
     if scope_set:
         if doc_ids:
             doc_ids = [doc_id for doc_id in doc_ids if str(doc_id) in scope_set]
-            if not doc_ids and cfg.retrieval_category_filter_fallback:
+            if (
+                not doc_ids
+                and cfg.retrieval_category_filter_fallback
+                and _is_general_only(categories)
+            ):
                 filter_meta["category_filter_skipped"] = "scope intersection empty"
                 doc_ids = [UUID(doc_id) for doc_id in scope_set]
-        else:
+        elif cfg.retrieval_category_filter_fallback and _is_general_only(categories):
             doc_ids = [UUID(doc_id) for doc_id in scope_set]
 
     return doc_ids or None, filter_meta
 
 
-async def _retrieve_attempt(
+async def retrieve_hybrid_attempt(
     client: DocumentMCPClient,
     *,
     tenant_id: str,
@@ -394,9 +400,11 @@ async def multi_retrieve_for_section(
             }
             attempts_meta.append(step)
             winning_step = step
+            if resolve_meta.get("skipped_reason") == "no_indexed_playbook_for_categories":
+                break
             continue
 
-        hits, step = await _retrieve_attempt(
+        hits, step = await retrieve_hybrid_attempt(
             client,
             tenant_id=tenant_id,
             query=query,
@@ -416,11 +424,18 @@ async def multi_retrieve_for_section(
 
     relevance_dropped = 0
     if hits and cfg.retrieval_relevance_gate_enabled:
+        relevance_floor = max(
+            cfg.retrieval_relevance_min_score,
+            cfg.compare_hit_min_relevance_score,
+        )
+        catalog_cats = catalog_doc_categories(policy_catalog or [])
         relevant, dropped = filter_hits_by_relevance(
             hits,
             section_categories=classification.categories,
             section_title=section.title or section.section_id,
-            min_score=cfg.retrieval_relevance_min_score,
+            min_score=relevance_floor,
+            keep_best_fallback=cfg.retrieval_relevance_keep_best_fallback,
+            doc_catalog_categories=catalog_cats or None,
         )
         if relevant:
             relevance_dropped = len(dropped)

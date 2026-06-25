@@ -399,6 +399,28 @@ async def test_boilerplate_parties_skips_llm(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_numbered_notices_title_still_boilerplate_skip(monkeypatch):
+    section = _section(
+        "10.5 Notices",
+        "Recipient shall keep all Confidential Information strictly confidential.",
+        section_id="10.5",
+    )
+    called = {"n": 0}
+
+    async def _fake_invoke(*_args, **_kwargs):
+        called["n"] += 1
+        raise AssertionError("LLM should not be called for numbered Notices title")
+
+    monkeypatch.setattr(section_classifier, "get_review_model", lambda **_: object())
+    monkeypatch.setattr(section_classifier, "invoke_structured", _fake_invoke)
+
+    result = await section_classifier.classify_section_policies(section)
+    assert called["n"] == 0
+    assert result.substantive is False
+    assert result.classify_warning == "boilerplate_skip"
+
+
+@pytest.mark.asyncio
 async def test_substantive_title_blocks_general_on_fallback(monkeypatch):
     section = _section(
         "Limitation of Liability",

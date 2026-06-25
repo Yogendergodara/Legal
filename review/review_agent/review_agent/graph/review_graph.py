@@ -13,6 +13,13 @@ from langgraph.graph import END, START, StateGraph
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.clients.memory_client import MemoryMCPClient
 from review_agent.config import build_runtime_settings_snapshot, get_settings
+from review_agent.graph.obligation_nodes import obligation_extract_node
+from review_agent.graph.obligation_compare_nodes import obligation_compare_node
+from review_agent.graph.obligation_retrieval_nodes import (
+    evidence_sufficiency_node,
+    obligation_retrieval_node,
+)
+from review_agent.graph.routing_nodes import catalog_match_node, semantic_route_node
 from review_agent.graph.discovery_nodes import contract_routing_node, policy_discovery_node
 from review_agent.graph.memory_nodes import load_memory_node, save_review_memory_node
 from review_agent.graph.section_compare_nodes import (
@@ -53,9 +60,15 @@ def build_review_graph(
     _add_timed_node(graph, "load_memory", load_memory_node, memory_client=memory_client)
     _add_timed_node(graph, "contract_parser", contract_parser_node, client=client)
     _add_timed_node(graph, "clause_detection", clause_detection_node, client=client)
+    _add_timed_node(graph, "obligation_extract", obligation_extract_node, client=client)
+    _add_timed_node(graph, "semantic_route", semantic_route_node, client=client)
+    _add_timed_node(graph, "catalog_match", catalog_match_node, client=client)
     _add_timed_node(graph, "contract_routing", contract_routing_node, client=client)
     _add_timed_node(graph, "policy_discovery", policy_discovery_node, client=client)
     _add_timed_node(graph, "index_policies", index_policies_node, client=client)
+    _add_timed_node(graph, "obligation_retrieval", obligation_retrieval_node, client=client)
+    _add_timed_node(graph, "evidence_sufficiency", evidence_sufficiency_node, client=client)
+    _add_timed_node(graph, "obligation_compare", obligation_compare_node, client=client)
     _add_timed_node(
         graph,
         "section_policy_retrieval",
@@ -77,10 +90,16 @@ def build_review_graph(
     graph.add_edge(START, "load_memory")
     graph.add_edge("load_memory", "contract_parser")
     graph.add_edge("contract_parser", "clause_detection")
-    graph.add_edge("clause_detection", "contract_routing")
+    graph.add_edge("clause_detection", "obligation_extract")
+    graph.add_edge("obligation_extract", "semantic_route")
+    graph.add_edge("semantic_route", "catalog_match")
+    graph.add_edge("catalog_match", "contract_routing")
     graph.add_edge("contract_routing", "policy_discovery")
     graph.add_edge("policy_discovery", "index_policies")
-    graph.add_edge("index_policies", "section_policy_retrieval")
+    graph.add_edge("index_policies", "obligation_retrieval")
+    graph.add_edge("obligation_retrieval", "evidence_sufficiency")
+    graph.add_edge("evidence_sufficiency", "obligation_compare")
+    graph.add_edge("obligation_compare", "section_policy_retrieval")
     graph.add_edge("section_policy_retrieval", "section_compare_llm")
     graph.add_edge("section_compare_llm", "merge_section_findings")
     graph.add_edge("merge_section_findings", "final_gap_verify")
@@ -168,6 +187,14 @@ async def run_review(
             "unclear_recompare_finding_ids": [],
             "conflict_pairs": [],
             "section_coverage": {},
+            "obligations": [],
+            "obligation_extract_stats": {},
+            "obligation_routing_by_id": {},
+            "obligation_catalog_match_by_id": {},
+            "obligation_retrieval_by_id": {},
+            "obligation_evidence_by_id": {},
+            "obligation_compare_items": [],
+            "obligation_findings": [],
         }
         config = {"configurable": {"thread_id": session_id}}
         result = await graph.ainvoke(initial, config=config)

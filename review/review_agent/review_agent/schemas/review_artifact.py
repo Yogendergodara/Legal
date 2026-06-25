@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from review_agent.schemas.section_compare import SectionCompareItem
 
-ARTIFACT_VERSION = "1.0"
+ARTIFACT_VERSION = "1.1"
 
 
 class SectionAuditRow(BaseModel):
@@ -38,6 +38,19 @@ class GapLlmAuditRow(BaseModel):
     finding_id: str
     status: str
     rationale_preview: str = ""
+
+
+class ObligationRoutingAuditRow(BaseModel):
+    obligation_id: str
+    section_id: str
+    routing_source: str = ""
+    confidence: float = 0.0
+    candidate_doc_ids: list[str] = Field(default_factory=list)
+    candidate_titles: list[str] = Field(default_factory=list)
+    evidence_decision: str = ""
+    evidence_reason: str = ""
+    queries_used: list[str] = Field(default_factory=list)
+    hit_count: int = 0
 
 
 class ReviewArtifactOps(BaseModel):
@@ -88,6 +101,7 @@ class ReviewArtifact(BaseModel):
     work_queue: dict[str, Any] = Field(default_factory=dict)
 
     gap_llm: list[GapLlmAuditRow] = Field(default_factory=list)
+    obligation_routing: list[ObligationRoutingAuditRow] = Field(default_factory=list)
     superseded_finding_ids: list[str] = Field(default_factory=list)
 
     final_verify_stats: dict[str, Any] = Field(default_factory=dict)

@@ -10,6 +10,27 @@ from review_agent.schemas.section_compare import BatchSectionCompareLLMResult, S
 from review_agent.services import section_compare_llm
 
 
+def test_compare_prompt_includes_topic_mismatch_rules():
+    system, _ = section_compare_llm._load_prompt_template()
+    assert "Topic mismatch" in system
+    assert "Legal notices" in system
+    assert "applies to this section's topic" in system
+
+
+def test_format_sections_includes_categories():
+    section = _section("10.1", "Governing law text.")
+    section = section.model_copy(update={"title": "Governing Law"})
+    hit = _policy_hit("IR policy text", categories=["incident_reporting"])
+    block, _ = section_compare_llm._format_sections_block(
+        [section],
+        {"10.1": [hit]},
+        max_section_chars=8000,
+        categories_by_section={"10.1": ["governing_law"]},
+    )
+    assert "- **Section categories:** governing_law" in block
+    assert "- **Policy categories:** incident_reporting" in block
+
+
 def _section(section_id: str, text: str) -> IndexedChunk:
     return IndexedChunk(
         chunk_id="c1",

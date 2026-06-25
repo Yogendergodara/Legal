@@ -7,14 +7,16 @@ from typing import Any
 from document_core.schemas.chunk import IndexedChunk
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import get_settings
+from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.final_verify_llm import run_final_gap_verify
-from review_agent.services.policy_coverage import apply_coverage_gate
+from review_agent.services.policy_coverage import apply_coverage_gate, catalog_doc_categories
 from review_agent.services.section_compare_llm import compare_all_sections
 from review_agent.services.playbook_context import build_playbook_hints_by_document
 from review_agent.services.section_coverage import ensure_section_coverage, reviewable_sections
 from review_agent.resilience.failed_sections import compare_failed_entries
 from review_agent.services.section_merge import merge_section_findings
+from review_agent.services.routing_tenant import obligation_routing_active
 from review_agent.state.review_state import ReviewState
 
 
@@ -35,13 +37,47 @@ def _playbook_hints(state: ReviewState):
     return build_playbook_hints_by_document(state.get("indexed_policies"))
 
 
+def _sections_for_legacy_compare(
+    sections: list[IndexedChunk],
+    state: ReviewState,
+    settings,
+) -> list[IndexedChunk]:
+    tenant_id = str(state.get("tenant_id") or "")
+    if not obligation_routing_active(tenant_id, settings) or not settings.obligation_compare_enabled:
+        return sections
+    if settings.obligation_section_cutover_mode != "skip":
+        return sections
+    covered = {
+        ContractObligation.model_validate(item).section_id
+        for item in (state.get("obligations") or [])
+    }
+    if not covered:
+        return sections
+    return [section for section in sections if section.section_id not in covered]
+
+
+def _bundle_is_substantive(
+    bundle: SectionRetrievalBundle | None,
+    *,
+    settings,
+) -> bool:
+    if not settings.gap_boilerplate_skip_compare:
+        return True
+    if bundle is None:
+        return True
+    meta = bundle.retrieval_meta or {}
+    if meta.get("skipped_reason") == "boilerplate":
+        return False
+    return meta.get("substantive", True) is not False
+
+
 async def section_compare_llm_node(
     state: ReviewState,
     client: DocumentMCPClient,
 ) -> dict[str, Any]:
     _ = client
     settings = get_settings()
-    sections = _load_sections(state)
+    sections = _sections_for_legacy_compare(_load_sections(state), state, settings)
     bundles = _load_bundles(state)
 
     hits_by_section: dict[str, list] = {
@@ -51,26 +87,27 @@ async def section_compare_llm_node(
         sid: list(bundle.categories) for sid, bundle in bundles.items()
     }
     playbook_hints = _playbook_hints(state)
+    doc_catalog = catalog_doc_categories(list(state.get("indexed_policies") or []))
+
+    substantive_sections = [
+        s for s in sections if _bundle_is_substantive(bundles.get(s.section_id), settings=settings)
+    ]
 
     coverage_warnings: list[str] = []
     ipc_items: list = []
     if settings.policy_coverage_enabled:
         hits_by_section, ipc_items, coverage_warnings = apply_coverage_gate(
-            sections,
+            substantive_sections,
             hits_by_section,
             categories_by_section,
             settings=settings,
+            doc_catalog_categories=doc_catalog or None,
         )
 
     sections_with_policy = [
         s
-        for s in sections
+        for s in substantive_sections
         if hits_by_section.get(s.section_id)
-        and (
-            not settings.gap_boilerplate_skip_compare
-            or (bundles.get(s.section_id) or SectionRetrievalBundle(section_id=s.section_id))
-            .retrieval_meta.get("substantive", True)
-        )
     ]
 
     related_by_section = {}
@@ -122,6 +159,7 @@ async def section_compare_llm_node(
         playbook_hints_by_document=playbook_hints,
         categories_by_section=categories_by_section,
         related_by_section=related_by_section,
+        doc_catalog_categories=doc_catalog or None,
     )
     incorporation_upgraded = 0
     if settings.incorporation_guard_enabled:
@@ -129,12 +167,27 @@ async def section_compare_llm_node(
 
         sections_by_id = {s.section_id: s for s in sections}
         items, incorporation_upgraded = apply_incorporation_guard(items, sections_by_id)
+    topic_mismatch_downgraded = 0
+    if settings.topic_mismatch_guard_enabled:
+        from review_agent.services.topic_mismatch_guard import apply_topic_mismatch_guard
+
+        sections_by_id = {s.section_id: s for s in sections}
+        items, topic_mismatch_downgraded = apply_topic_mismatch_guard(
+            items,
+            sections_by_id=sections_by_id,
+            categories_by_section=categories_by_section,
+            hits_by_section=hits_by_section,
+        )
     if ipc_items:
         items = list(ipc_items) + list(items)
     compare_warnings = coverage_warnings + compare_warnings
     if incorporation_upgraded:
         compare_warnings.append(
             f"incorporation guard upgraded {incorporation_upgraded} finding(s)"
+        )
+    if topic_mismatch_downgraded:
+        compare_warnings.append(
+            f"topic mismatch guard downgraded {topic_mismatch_downgraded} finding(s)"
         )
 
     path_counts = {"dense": 0, "fts": 0, "metadata": 0}
@@ -156,6 +209,7 @@ async def section_compare_llm_node(
         "compare_items": len(items),
         "coverage_gate_ipc_count": len(ipc_items),
         "incorporation_guard_upgraded": incorporation_upgraded,
+        "topic_mismatch_guard_downgraded": topic_mismatch_downgraded,
         "retrieval_paths_used": path_counts,
         **batch_stats,
     }
@@ -172,6 +226,7 @@ async def merge_section_findings_node(
     client: DocumentMCPClient,
 ) -> dict[str, Any]:
     _ = client
+    from document_core.schemas.compliance import ComplianceFinding
     from review_agent.schemas.section_compare import SectionCompareItem
 
     bundles = _load_bundles(state)
@@ -183,8 +238,13 @@ async def merge_section_findings_node(
         hints_by_document=_playbook_hints(state),
         sections_by_id={s.section_id: s for s in _load_sections(state)},
     )
+    obligation_findings = [
+        ComplianceFinding.model_validate(item)
+        for item in (state.get("obligation_findings") or [])
+    ]
+    all_findings = obligation_findings + merged.findings
     return {
-        "findings": merged.findings,
+        "findings": all_findings,
         "warnings": merged.warnings,
         "gap_section_ids": merged.gap_section_ids,
         "no_policy_gap_ids": merged.no_policy_gap_ids,

@@ -16,6 +16,7 @@ from document_core.schemas.chunk import (
     RetrievalHit,
     SearchRequest,
 )
+from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
 from legal_ai_platform.mcp.base_client import BaseMCPClient
 
 
@@ -39,6 +40,10 @@ class DocumentMCPClient(BaseMCPClient):
     async def search_policy(self, request: SearchRequest) -> list[RetrievalHit]:
         data = await self._post("/tools/search_policy", request.model_dump(mode="json"))
         return [RetrievalHit.model_validate(hit) for hit in data.get("results", [])]
+
+    async def search_policy_catalog(self, request: CatalogSearchRequest) -> list[CatalogSearchHit]:
+        data = await self._post("/tools/search_policy_catalog", request.model_dump(mode="json"))
+        return [CatalogSearchHit.model_validate(hit) for hit in data.get("results", [])]
 
     async def list_sections(self, request: ListSectionsRequest) -> list[IndexedChunk]:
         data = await self._post("/tools/list_sections", request.model_dump(mode="json"))

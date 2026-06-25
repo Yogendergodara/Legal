@@ -239,9 +239,9 @@ async def grounding_node(state: ReviewState, client: DocumentMCPClient) -> dict[
             and contract_ok
             and not (finding.policy_quote or "").strip()
         ):
-            from review_agent.services.quote_validate import allows_empty_policy_quote
+            from review_agent.services.quote_validate import allows_compliant_without_policy_quote
 
-            if allows_empty_policy_quote(
+            if allows_compliant_without_policy_quote(
                 finding.status,
                 finding.rationale,
                 contract_ok=contract_ok,

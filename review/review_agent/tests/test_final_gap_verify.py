@@ -62,6 +62,7 @@ async def test_final_verify_recompares_compare_omitted(monkeypatch):
             section_path="5",
             title="Indemnity",
             text="Vendor must indemnify customer for third-party claims.",
+            metadata={"categories": ["indemnity"]},
         ),
         score=0.8,
     )
@@ -149,6 +150,7 @@ async def test_gap_verify_re_retrieve_and_compare(monkeypatch):
             section_path="5",
             title="Indemnity",
             text="Vendor must indemnify customer for third-party claims.",
+            metadata={"categories": ["indemnity"]},
         ),
         score=0.8,
     )
@@ -224,6 +226,88 @@ async def test_gap_verify_re_retrieve_and_compare(monkeypatch):
     assert len(new_findings) == 1
     assert new_findings[0].status == ComplianceStatus.NON_COMPLIANT
     assert not gap_llm_called
+
+
+@pytest.mark.asyncio
+async def test_re_retrieve_off_topic_blocked_by_coverage_gate(monkeypatch):
+    from review_agent.config import ReviewSettings
+
+    section = IndexedChunk(
+        chunk_id="c-gl",
+        document_id=uuid4(),
+        tenant_id="demo",
+        kind=DocumentKind.CONTRACT,
+        chunk_role=ChunkRole.PARENT,
+        section_id="10.1",
+        section_path="10.1",
+        title="Governing Law",
+        text="This Agreement shall be governed by Wyoming law.",
+    )
+    ir_hit = RetrievalHit(
+        parent_chunk=IndexedChunk(
+            chunk_id="p-ir",
+            document_id=uuid4(),
+            tenant_id="demo",
+            kind=DocumentKind.POLICY,
+            chunk_role=ChunkRole.PARENT,
+            section_id="10",
+            section_path="10",
+            title="Incident Response Plan",
+            text="Prepare incident report within 8 hours.",
+            metadata={"categories": ["incident_reporting"]},
+        ),
+        score=0.9,
+    )
+
+    compare_called = False
+
+    async def _fake_multi_retrieve(*_args, **_kwargs):
+        return SectionRetrievalBundle(
+            section_id="10.1",
+            categories=["governing_law"],
+            policy_hits=[ir_hit],
+            retrieval_meta={"dense_count": 1},
+        )
+
+    async def _fake_compare(*_args, **_kwargs):
+        nonlocal compare_called
+        compare_called = True
+        raise AssertionError("compare should not run for off-topic re-retrieve")
+
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.multi_retrieve_for_section",
+        _fake_multi_retrieve,
+    )
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.compare_section_batch",
+        _fake_compare,
+    )
+
+    new_findings, _warnings, stats, _superseded = await run_final_gap_verify(
+        client=object(),
+        tenant_id="demo",
+        sections_by_id={"10.1": section},
+        bundles={"10.1": SectionRetrievalBundle(section_id="10.1", categories=[], policy_hits=[])},
+        gap_section_ids=["10.1"],
+        existing_findings=[
+            ComplianceFinding(
+                finding_id="f1",
+                dimension_id="10.1:no_policy",
+                dimension_label="Governing Law",
+                status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+                contract_section_id="10.1",
+                rationale="No policy retrieved initially.",
+                metadata={"gap_type": "no_policy"},
+            )
+        ],
+        contract_type="nda",
+        policy_type=None,
+        settings=ReviewSettings(policy_coverage_enabled=True),
+    )
+    assert stats["resolved_with_policy"] == 1
+    assert not compare_called
+    assert len(new_findings) == 1
+    assert new_findings[0].status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
 
 
 @pytest.mark.asyncio

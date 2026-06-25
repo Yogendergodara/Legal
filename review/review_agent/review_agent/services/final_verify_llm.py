@@ -19,6 +19,7 @@ from review_agent.schemas.section_compare import (
 )
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.multi_retrieval import multi_retrieve_for_section
+from review_agent.services.policy_coverage import apply_coverage_gate
 from review_agent.services.quote_validate import truncate_section, validate_gap_item_quotes
 from review_agent.services.section_compare_llm import compare_section_batch
 from review_agent.services.conflict_resolve import (
@@ -271,6 +272,50 @@ def _lowest_confidence_by_section(
     return scores
 
 
+async def _compare_sections_gated(
+    sections: list[IndexedChunk],
+    hits_map: dict[str, list],
+    bundles: dict[str, SectionRetrievalBundle],
+    *,
+    contract_type: str | None,
+    memory_context: str,
+    settings: ReviewSettings,
+) -> tuple[list, list, list[str]]:
+    """Run coverage gate then compare; return (compare_items, ipc_items, warnings)."""
+    from review_agent.schemas.section_compare import SectionCompareItem
+
+    categories_by_section = {
+        s.section_id: list(bundles[s.section_id].categories) if bundles.get(s.section_id) else []
+        for s in sections
+    }
+    ipc_items: list[SectionCompareItem] = []
+    warnings: list[str] = []
+    working_hits = dict(hits_map)
+    if settings.policy_coverage_enabled:
+        working_hits, ipc_items, cov_warnings = apply_coverage_gate(
+            sections,
+            working_hits,
+            categories_by_section,
+            settings=settings,
+        )
+        warnings.extend(cov_warnings)
+    compare_sections = [s for s in sections if working_hits.get(s.section_id)]
+    items = []
+    if compare_sections:
+        batch_hits = {s.section_id: working_hits[s.section_id] for s in compare_sections}
+        batch_items, item_warnings = await compare_section_batch(
+            compare_sections,
+            batch_hits,
+            contract_type=contract_type,
+            memory_context=memory_context,
+            settings=settings,
+            categories_by_section=categories_by_section,
+        )
+        warnings.extend(item_warnings)
+        items = batch_items
+    return items, ipc_items, warnings
+
+
 async def run_final_gap_verify(
     *,
     client: DocumentMCPClient,
@@ -372,15 +417,17 @@ async def run_final_gap_verify(
 
         stats["resolved_with_policy"] += 1
         hits_map = {section_id: list(refreshed.policy_hits)}
-        items, item_warnings = await compare_section_batch(
+        items, ipc_items, item_warnings = await _compare_sections_gated(
             [section],
             hits_map,
+            bundles,
             contract_type=contract_type,
             memory_context=memory_context,
             settings=cfg,
         )
         warnings.extend(item_warnings)
-        phase_findings = section_items_to_findings(items, pipeline="section_first_final")
+        all_items = list(ipc_items) + list(items)
+        phase_findings = section_items_to_findings(all_items, pipeline="section_first_final")
         new_findings.extend(phase_findings)
         superseded_ids.extend(
             _finding_ids_for_section(existing, section_id, gap_types=gap_supersede_types)
@@ -413,18 +460,20 @@ async def run_final_gap_verify(
             }
             if not hits_map:
                 continue
-            items, item_warnings = await compare_section_batch(
+            items, ipc_items, item_warnings = await _compare_sections_gated(
                 batch_sections,
                 hits_map,
+                bundles,
                 contract_type=contract_type,
                 memory_context=memory_context,
                 settings=cfg,
             )
             warnings.extend(item_warnings)
-            if items:
+            all_items = list(ipc_items) + list(items)
+            if all_items:
                 stats["compare_omitted_recovered"] += len(batch_sids)
                 new_findings.extend(
-                    section_items_to_findings(items, pipeline="section_first_final")
+                    section_items_to_findings(all_items, pipeline="section_first_final")
                 )
                 for sid in batch_sids:
                     superseded_ids.extend(

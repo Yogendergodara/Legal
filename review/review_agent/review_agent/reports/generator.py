@@ -83,6 +83,10 @@ def _render_executive_summary(
     guard_failed = ops.guard_failed if ops else 0
     guard_inference = ops.guard_inference_ok if ops else 0
     quote_repaired = ops.quote_repair_success if ops else 0
+    downgrade_validate = 0
+    if artifact and artifact.compliance_stats:
+        rc = artifact.compliance_stats.get("review_confidence") or {}
+        downgrade_validate = int(rc.get("downgrade_quote_validate") or 0)
 
     return [
         "## Executive summary",
@@ -90,7 +94,8 @@ def _render_executive_summary(
         f"Reviewed **{reviewable_count}** contract sections against **{discovery_count}** discovered policies. "
         f"**{non_compliant}** non-compliant, **{critical}** critical, **{policy_conflict}** policy conflicts.",
         f"Retrieval retried **{retrieval_retry}** section(s); **{backfill}** coverage backfill(s). "
-        f"**{ungrounded}** finding(s) failed quote grounding; **{guard_failed}** failed rationale guard; "
+        f"**{downgrade_validate}** finding(s) downgraded at compare quote validate; "
+        f"**{ungrounded}** failed MCP quote grounding; **{guard_failed}** failed rationale guard; "
         f"**{guard_inference}** inference-only (OK); **{quote_repaired}** quote(s) repaired.",
     ]
 

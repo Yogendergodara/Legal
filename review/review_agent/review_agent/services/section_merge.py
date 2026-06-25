@@ -14,6 +14,7 @@ from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.finding_dedupe import dedupe_compare_items, prepare_compare_items_for_merge
 from review_agent.services.playbook_context import PlaybookHints
 from review_agent.services.section_gap_status import resolve_gap_finding_status
+from review_agent.services.quote_validate import QUOTE_VALIDATE_DOWNGRADE_MARKER
 from review_agent.services.unclear_recompare import classify_unclear_finding, eligible_for_unclear_recompare
 
 _UNCLEAR_STATUSES = frozenset(
@@ -79,6 +80,8 @@ def section_items_to_findings(
         if rationale.startswith("Section compare failed:"):
             metadata["gap_type"] = "compare_failed"
             metadata["source"] = "section_compare_failed"
+        if QUOTE_VALIDATE_DOWNGRADE_MARKER in rationale:
+            metadata["downgrade_source"] = "quote_validate"
 
         findings.append(
             ComplianceFinding(

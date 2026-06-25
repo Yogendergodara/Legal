@@ -17,20 +17,36 @@ ReviewOutcome = Literal[
     "contract_reviewed",
 ]
 
+_GOVERNING_LAW_TITLE = re.compile(r"^governing law\b", re.IGNORECASE)
+_SECTION_PREFIX = re.compile(r"^[\d]+(?:\.[\d]+)*\s+")
+
 _BOILERPLATE_TITLE = re.compile(
     r"^(parties|party|effective date|purpose|background|recitals?|preamble|"
     r"definitions?|interpretation|notices?|notice provisions?|entire agreement|"
     r"counterparts?|signatures?|execution|general provisions?|"
     r"boilerplate|severability|headings?|amendments?|waivers?|"
+    r"assignment|electronic signatures?|agreed and accepted|in witness whereof|"
     r"relationship of (the )?parties)\b",
     re.IGNORECASE,
 )
 
 
+def normalize_section_title(title: str) -> str:
+    """Strip leading section numbers (e.g. '10.5 Notices' -> 'Notices')."""
+    t = (title or "").strip()
+    normalized = _SECTION_PREFIX.sub("", t, count=1).strip()
+    return normalized or t
+
+
 def is_boilerplate_section(section: IndexedChunk) -> bool:
     """Title-level boilerplate (parties, purpose, definitions, notices, counterparts)."""
-    title = (section.title or section.section_id or "").strip()
-    return bool(title and _BOILERPLATE_TITLE.search(title))
+    raw = (section.title or section.section_id or "").strip()
+    if not raw:
+        return False
+    title = normalize_section_title(raw)
+    if _GOVERNING_LAW_TITLE.search(title):
+        return False
+    return bool(_BOILERPLATE_TITLE.search(title))
 
 
 def is_non_substantive_section(section: IndexedChunk) -> bool:

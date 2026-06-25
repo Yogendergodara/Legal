@@ -30,7 +30,7 @@ from review_agent.config import get_settings as get_review_settings  # noqa: E40
 from review_agent.errors import RecoverableError  # noqa: E402
 from review_agent.graph.review_graph import run_review  # noqa: E402
 from review_output import build_platform_review_payload, build_review_output_envelope  # noqa: E402
-from export_assessment import export_review_assessments  # noqa: E402
+from export_assessment import assessment_slug, export_review_assessments  # noqa: E402
 from sync_service import (  # noqa: E402
     OUTPUTS,
     fixture_contract_raw_text,
@@ -70,6 +70,7 @@ class PolicySyncBody(BaseModel):
     policies: list[dict[str, Any]] = Field(default_factory=list)
     use_shared_tenant: bool = True
     replace_tenant_policies: bool = False
+    tenant_id: str | None = None
 
 
 class ReviewTextBody(BaseModel):
@@ -218,10 +219,20 @@ async def _run_review(
         envelope["policy_source"] = policy_source
         envelope["contract_text_chars"] = len(text)
 
+    envelope["tenant_id"] = tenant
     OUTPUTS.mkdir(exist_ok=True)
-    (OUTPUTS / "review_result.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
+    review_json = json.dumps(envelope, indent=2)
+    (OUTPUTS / "review_result.json").write_text(review_json, encoding="utf-8")
+    slug = assessment_slug(contract_title)
+    named_review = OUTPUTS / f"{slug}_review_result.json"
+    if named_review.name != "review_result.json":
+        named_review.write_text(review_json, encoding="utf-8")
+        envelope["review_paths"] = ["review_result.json", named_review.name]
+    else:
+        envelope["review_paths"] = ["review_result.json"]
     try:
-        sync_path = OUTPUTS / "sync_result.json"
+        tenant_sync = OUTPUTS / f"sync_{tenant}.json"
+        sync_path = tenant_sync if tenant_sync.is_file() else OUTPUTS / "sync_result.json"
         envelope["assessment_paths"] = export_review_assessments(
             OUTPUTS / "review_result.json",
             contract_title=contract_title,
@@ -335,7 +346,9 @@ async def api_fixture_contract() -> dict[str, str]:
 
 @app.post("/api/sync-policies")
 async def api_sync_policies(body: PolicySyncBody) -> dict[str, Any]:
-    tenant = resolve_tenant(shared=body.use_shared_tenant, configured=_state["tenant_id"])
+    tenant = (body.tenant_id or "").strip()
+    if not tenant:
+        tenant = resolve_tenant(shared=body.use_shared_tenant, configured=_state["tenant_id"])
     if not body.policies:
         raise HTTPException(status_code=400, detail="Add at least one policy with raw text")
     client = _document_client()

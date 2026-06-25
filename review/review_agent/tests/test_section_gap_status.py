@@ -110,3 +110,28 @@ def test_gap_llm_keeps_boilerplate_insufficient():
     upgraded = upgrade_substantive_gap_finding(finding, section)
     assert upgraded.status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
     assert upgraded.metadata.get("review_outcome") == "boilerplate"
+
+
+def test_numbered_notices_is_boilerplate():
+    section = _section("10.5 Notices", "Notices shall be delivered by certified mail.")
+    assert is_boilerplate_section(section) is True
+
+
+def test_numbered_severability_is_boilerplate():
+    section = _section("10.3 Severability", "If any provision is invalid, the remainder survives.")
+    assert is_boilerplate_section(section) is True
+
+
+def test_numbered_entire_agreement_is_boilerplate():
+    section = _section("10.1 Entire Agreement", "This Agreement constitutes the entire agreement.")
+    assert is_boilerplate_section(section) is True
+
+
+def test_assignment_is_boilerplate():
+    section = _section("Assignment", "Neither party may assign without consent.")
+    assert is_boilerplate_section(section) is True
+
+
+def test_governing_law_not_boilerplate():
+    section = _section("Governing Law", "This Agreement is governed by Delaware law.")
+    assert is_boilerplate_section(section) is False

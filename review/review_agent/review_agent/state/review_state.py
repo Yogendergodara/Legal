@@ -56,6 +56,16 @@ class ReviewState(TypedDict, total=False):
     compliance_stats: dict[str, Any]
     superseded_finding_ids: list[str]
 
+    obligations: list[dict[str, Any]]
+    obligation_extract_stats: dict[str, Any]
+    obligation_routing_by_id: dict[str, dict[str, Any]]
+    obligation_catalog_match_by_id: dict[str, dict[str, Any]]
+    obligation_routing_candidate_doc_ids: list[str]
+    obligation_retrieval_by_id: dict[str, dict[str, Any]]
+    obligation_evidence_by_id: dict[str, dict[str, Any]]
+    obligation_compare_items: list[dict[str, Any]]
+    obligation_findings: list[dict[str, Any]]
+
     findings: list[ComplianceFinding]
     grounded_findings: list[ComplianceFinding]
     warnings: Annotated[list[str], merge_warnings]

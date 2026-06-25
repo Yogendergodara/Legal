@@ -71,6 +71,50 @@ def record_mcp_request(path: str, status: str) -> None:
     counter.labels(path=path, status=status).inc()  # type: ignore[union-attr]
 
 
+def _routing_counter(name: str, description: str):
+    if not _ENABLED:
+        return None
+    try:
+        from prometheus_client import Counter
+    except ImportError:
+        return None
+    counter = _COUNTERS.get(name)
+    if counter is None:
+        counter = Counter(name, description)
+        _COUNTERS[name] = counter
+    return counter
+
+
+def record_routing_alias_hit() -> None:
+    counter = _routing_counter("obligation_routing_alias_hit_total", "Alias fast-path routing hits")
+    if counter is not None:
+        counter.inc()  # type: ignore[union-attr]
+
+
+def record_routing_planner_call() -> None:
+    counter = _routing_counter("obligation_routing_planner_calls_total", "Semantic planner LLM batches")
+    if counter is not None:
+        counter.inc()  # type: ignore[union-attr]
+
+
+def record_routing_ipc() -> None:
+    counter = _routing_counter("obligation_routing_ipc_total", "Obligation evidence IPC decisions")
+    if counter is not None:
+        counter.inc()  # type: ignore[union-attr]
+
+
+def record_routing_compare() -> None:
+    counter = _routing_counter("obligation_routing_compare_total", "Obligation evidence compare decisions")
+    if counter is not None:
+        counter.inc()  # type: ignore[union-attr]
+
+
+def record_wrong_policy_blocked() -> None:
+    counter = _routing_counter("obligation_wrong_policy_blocked_total", "Wrong-policy compare blocks")
+    if counter is not None:
+        counter.inc()  # type: ignore[union-attr]
+
+
 def record_llm_call(operation: str, status: str) -> None:
     if not _ENABLED:
         return

@@ -16,6 +16,7 @@ if _LEGAL_AI.is_dir() and str(_LEGAL_AI) not in sys.path:
 def pytest_configure(config):
     config.addinivalue_line("markers", "integration: requires Postgres pgvector")
     config.addinivalue_line("markers", "benchmark: live LLM benchmark (nightly)")
+    config.addinivalue_line("markers", "routing_golden: deterministic routing golden gate (Phase R8)")
 
 
 def _database_url() -> str:
@@ -56,7 +57,7 @@ def pg_document_store(pg_engine, database_url):
 
     run_migrations(database_url)
     with pg_engine.begin() as conn:
-        conn.execute(text("TRUNCATE document_chunks, document_canonical, policy_documents CASCADE"))
+        conn.execute(text("TRUNCATE document_chunks, document_canonical, policy_catalog_vectors, policy_documents CASCADE"))
     reset_store()
     pg_store = PgVectorDocumentStore(database_url, hybrid_alpha=0.5)
     set_store(pg_store)

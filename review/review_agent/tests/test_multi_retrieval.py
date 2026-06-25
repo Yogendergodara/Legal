@@ -87,7 +87,7 @@ async def test_multi_retrieve_merges_three_paths():
 
     class FakeClient:
         async def list_policy_ids_by_categories(self, *_args, **_kwargs):
-            return []
+            return [uuid4()]
 
         async def search_policy_recall(self, _req):
             return [dense_hit]
@@ -125,7 +125,7 @@ async def test_multi_retrieve_retries_when_first_attempt_empty():
 
     class FakeClient:
         async def list_policy_ids_by_categories(self, *_args, **_kwargs):
-            return []
+            return [uuid4()]
 
         async def search_policy_recall(self, req):
             recall_calls.append(req.query)

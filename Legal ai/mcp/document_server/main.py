@@ -28,6 +28,7 @@ from document_core.schemas.chunk import (
     RetrievalHit,
     SearchRequest,
 )
+from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
 from document_core.schemas.registry import (
     DeletePolicyRequest,
     DeletePolicyResult,
@@ -58,6 +59,7 @@ from document_core.services.search import (
     search_policy_fts,
     search_policy_recall,
 )
+from document_core.services.catalog_search import search_policy_catalog
 from document_core.store.memory_store import get_store, set_store
 from mcp.document_server.config import (
     MCP_CAPABILITIES,
@@ -268,6 +270,12 @@ async def search_policy_by_categories_tool(request: SearchRequest) -> dict[str, 
         policy_type=request.policy_type,
         top_k=request.top_k,
     )
+    return {"results": [h.model_dump(mode="json") for h in hits]}
+
+
+@app.post("/tools/search_policy_catalog")
+async def search_policy_catalog_tool(request: CatalogSearchRequest) -> dict[str, Any]:
+    hits = await search_policy_catalog(request)
     return {"results": [h.model_dump(mode="json") for h in hits]}
 
 

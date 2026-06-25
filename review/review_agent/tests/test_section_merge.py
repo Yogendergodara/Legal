@@ -171,6 +171,25 @@ def test_section_items_playbook_metadata():
     assert findings[0].metadata.get("playbook_guidance_used") is True
 
 
+def test_section_items_tags_quote_validate_downgrade_metadata():
+    items = [
+        SectionCompareItem(
+            section_id="5.2",
+            policy_document_id="550e8400-e29b-41d4-a716-446655440000",
+            dimension_label="Human rights",
+            status=ComplianceStatus.INCONCLUSIVE,
+            severity=Severity.IMPORTANT,
+            rationale=(
+                "Section aligns with policy. "
+                "(Downgraded: model quotes were not exact substrings of the provided sections.)"
+            ),
+            confidence=0.8,
+        )
+    ]
+    findings = section_items_to_findings(items)
+    assert findings[0].metadata.get("downgrade_source") == "quote_validate"
+
+
 def test_merge_tags_unclear_recompare_eligibility():
     items = [
         SectionCompareItem(

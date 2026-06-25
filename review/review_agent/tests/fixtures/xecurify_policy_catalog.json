@@ -1,0 +1,46 @@
+{
+  "tenant_id": "e2e-demo",
+  "catalog_version": "xecurify-v1",
+  "policies": [
+    {
+      "document_id": "29356d10-36dc-5ef8-8cf1-a2948f7c2e28",
+      "policy_ref": "incident-response",
+      "title": "Incident Response Plan",
+      "aliases": ["Incident Response", "IR Plan", "Incident Response Plan"],
+      "topics": ["incident", "breach", "notification", "security incident"],
+      "summary": "Security incident response and customer notification timelines."
+    },
+    {
+      "document_id": "cb031cc8-f40e-58e7-87bb-7a315dc61051",
+      "policy_ref": "security-practices",
+      "title": "Security Practices Policy",
+      "aliases": ["Security Practices Policy", "Security Practices"],
+      "topics": ["security", "access control", "encryption"],
+      "summary": "Organizational security controls and practices."
+    },
+    {
+      "document_id": "3bf041f5-a4c0-5b06-99bc-7f6ce363a6d5",
+      "policy_ref": "privacy-policy",
+      "title": "Privacy Policy",
+      "aliases": ["Privacy Policy", "Xecurify Privacy Policy"],
+      "topics": ["privacy", "personal data", "processing"],
+      "summary": "Personal data processing and privacy commitments."
+    },
+    {
+      "document_id": "5be4e755-519b-5b00-ab48-c409f61b31af",
+      "policy_ref": "code-of-conduct",
+      "title": "Xecurify Code of Conduct",
+      "aliases": ["Code of Conduct", "Xecurify Code of Conduct"],
+      "topics": ["human rights", "modern slavery", "conduct", "ethics"],
+      "summary": "Workplace conduct, human rights, and ethical standards."
+    },
+    {
+      "document_id": "c8ccd775-368f-564a-a0f0-771684775143",
+      "policy_ref": "data-retention",
+      "title": "Data Retention Policy",
+      "aliases": ["Data Retention Policy", "Data Retention"],
+      "topics": ["retention", "deletion", "secure deletion", "data lifecycle"],
+      "summary": "Retention schedules and secure deletion requirements."
+    }
+  ]
+}

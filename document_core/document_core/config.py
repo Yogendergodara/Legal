@@ -45,6 +45,10 @@ class DocumentCoreSettings(BaseSettings):
     child_chunk_max_chars: int = 700
     child_chunk_overlap_sentences: int = 2
     category_search_boost: float = 0.15
+    policy_profiler_enabled: bool = True
+    policy_profiler_mode: Literal["auto", "llm", "keyword", "off"] = "auto"
+    policy_profiler_model: str = "mistral-small-latest"
+    policy_profiler_max_body_chars: int = 4000
 
     @field_validator("embedding_truncate_dim", mode="before")
     @classmethod

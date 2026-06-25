@@ -59,7 +59,7 @@ def pg_engine(database_url: str):
 @pytest.fixture
 def store(pg_engine, database_url: str):
     with pg_engine.begin() as conn:
-        conn.execute(text("TRUNCATE document_chunks, document_canonical, policy_documents CASCADE"))
+        conn.execute(text("TRUNCATE document_chunks, document_canonical, policy_catalog_vectors, policy_documents CASCADE"))
     reset_store()
     pg_store = PgVectorDocumentStore(database_url, hybrid_alpha=0.5)
     set_store(pg_store)

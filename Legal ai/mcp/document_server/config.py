@@ -13,6 +13,7 @@ VERSION = "0.1.0"
 MCP_CAPABILITIES = [
     "search_request_metadata",
     "search_policy_by_categories",
+    "search_policy_catalog",
     "structured_sections_ingest",
     "verify_quote",
 ]

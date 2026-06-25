@@ -16,6 +16,12 @@ Three phased plans to replace static YAML-driven review with **production-grade 
 | [Phase 9 — Postgres Session & Memory](../legal_ai_platform/docs/PHASE9_POSTGRES_SESSION_MEMORY_PLAN.md) | `DR-PHASE-9` | Implemented |
 | [Phase 10 — Section-First + High-Recall Retrieval](./PHASE10_SECTION_FIRST_RETRIEVAL_PLAN.md) | `DR-PHASE-10` | v1 shipped |
 | [Phase 10 — Production unified (single pipeline)](./PHASE10_PRODUCTION_UNIFIED_IMPL_PLAN.md) | `DR-PHASE-10-PROD` | **Execute next** |
+| [Phase R — AI-first semantic routing (obligation → catalog → evidence)](./PHASE_R_SEMANTIC_ROUTING_PLAN.md) | `DR-PHASE-R` | **R0–R9 implemented** |
+| [Phase R0+R1 — Implementation detail (minimal code)](./PHASE_R0_R1_IMPLEMENTATION_PLAN.md) | `DR-PHASE-R0-R1` | **Implemented** |
+| [Phase R2+R3 — Planner + catalog match (minimal code)](./PHASE_R2_R3_IMPLEMENTATION_PLAN.md) | `DR-PHASE-R2-R3` | **Implemented** |
+| [Phase R4+R5 — Scoped retrieval + evidence sufficiency (minimal code)](./PHASE_R4_R5_IMPLEMENTATION_PLAN.md) | `DR-PHASE-R4-R5` | **Implemented** |
+| [Phase R6+R7 — Obligation compare + audit (minimal code)](./PHASE_R6_R7_IMPLEMENTATION_PLAN.md) | `DR-PHASE-R6-R7` | **Implemented** |
+| [Phase R8+R9 — Golden CI + rollout (minimal code)](./PHASE_R8_R9_IMPLEMENTATION_PLAN.md) | `DR-PHASE-R8-R9` | **Implemented** |
 
 ## Phase 10 (accuracy — production cutover)
 

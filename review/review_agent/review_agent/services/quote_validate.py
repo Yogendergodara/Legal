@@ -9,10 +9,13 @@ from document_core.services.quote_match import quote_matches
 
 from review_agent.schemas.compliance_llm import ComplianceLLMResult
 
+QUOTE_VALIDATE_DOWNGRADE_MARKER = "Downgraded: model quotes were not exact substrings"
+
 _ALIGNMENT_RATIONALE = re.compile(
     r"(?i)\b("
-    r"aligns? with|no deviation|satisfies|incorporation|adopted by reference|"
-    r"consistent with|complies with|matches the policy"
+    r"aligns? with|explicitly aligns|incorporat(?:es|ion)|no material deviation|"
+    r"no deviation|satisfies|adopted by reference|consistent with|complies with|"
+    r"matches the policy|explicitly supports|treated as compliant"
     r")\b"
 )
 
@@ -34,7 +37,7 @@ def quote_is_substring(quote: str, haystack: str) -> bool:
     return quote_matches(quote, haystack)
 
 
-def allows_empty_policy_quote(
+def allows_compliant_without_policy_quote(
     status: ComplianceStatus,
     rationale: str,
     *,
@@ -45,6 +48,17 @@ def allows_empty_policy_quote(
         status == ComplianceStatus.COMPLIANT
         and contract_ok
         and bool(_ALIGNMENT_RATIONALE.search(rationale or ""))
+    )
+
+
+def allows_empty_policy_quote(
+    status: ComplianceStatus,
+    rationale: str,
+    *,
+    contract_ok: bool,
+) -> bool:
+    return allows_compliant_without_policy_quote(
+        status, rationale, contract_ok=contract_ok
     )
 
 
@@ -121,11 +135,13 @@ def validate_and_normalize_quotes(
                     quote_stats["compare_quote_anchored"] = quote_stats.get("compare_quote_anchored", 0) + 1
 
     if result.status in (ComplianceStatus.COMPLIANT, ComplianceStatus.NON_COMPLIANT):
-        if allows_empty_policy_quote(
+        if allows_compliant_without_policy_quote(
             result.status,
             result.rationale,
             contract_ok=contract_ok,
-        ) and not (result.policy_quote or "").strip():
+        ):
+            if not policy_ok:
+                result = result.model_copy(update={"policy_quote": ""})
             policy_ok = True
         if not contract_ok or not policy_ok:
             return ComplianceLLMResult(
@@ -135,7 +151,7 @@ def validate_and_normalize_quotes(
                 policy_quote=result.policy_quote if policy_ok else "",
                 rationale=(
                     f"{result.rationale} "
-                    "(Downgraded: model quotes were not exact substrings of the provided sections.)"
+                    f"({QUOTE_VALIDATE_DOWNGRADE_MARKER} of the provided sections.)"
                 )[:2000],
                 confidence=result.confidence,
             )

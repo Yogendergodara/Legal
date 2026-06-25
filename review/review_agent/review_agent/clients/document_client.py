@@ -29,6 +29,7 @@ from document_core.schemas.chunk import (
     RetrievalHit,
     SearchRequest,
 )
+from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
 
 _PATH_TIMEOUTS: dict[str, float] = {
     "/health": 5.0,
@@ -36,6 +37,7 @@ _PATH_TIMEOUTS: dict[str, float] = {
     "/tools/index_policy": 120.0,
     "/tools/search_policy": 30.0,
     "/tools/search_policy_by_categories": 30.0,
+    "/tools/search_policy_catalog": 30.0,
     "/tools/search_policy_fts": 30.0,
     "/tools/search_policy_recall": 30.0,
     "/tools/search_contract": 30.0,
@@ -293,6 +295,10 @@ class DocumentMCPClient:
             },
         )
         return [UUID(doc_id) for doc_id in data.get("document_ids", [])]
+
+    async def search_policy_catalog(self, request: CatalogSearchRequest) -> list[CatalogSearchHit]:
+        data = await self._post("/tools/search_policy_catalog", request.model_dump(mode="json"))
+        return [CatalogSearchHit.model_validate(hit) for hit in data.get("results", [])]
 
     async def list_sections(self, request: ListSectionsRequest) -> list[IndexedChunk]:
         data = await self._post("/tools/list_sections", request.model_dump(mode="json"))

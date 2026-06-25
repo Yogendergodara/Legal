@@ -106,18 +106,27 @@ Full operator path for Xecurify / miniOrange NDA testing. See also [Phase F plan
 
 | File | When |
 |------|------|
-| `sync_result.json` | After policy sync |
-| `review_result.json` | After every review |
+| `sync_result.json` | After policy sync (latest) |
+| `sync_{tenant_id}.json` | Tenant-paired sync snapshot |
+| `review_result.json` | Latest review (any benchmark) |
+| `{slug}_review_result.json` | Named regression review snapshot |
 | `review_assessment.json` | Latest assessment (UI parity) |
 | `{slug}_assessment.json` | Named snapshot from contract title |
 | `xecurify_nda_assessment.json` | Xecurify baseline / regression |
+| `xecurify_nda_review_result.json` | Xecurify regression review envelope |
 | `acme_nda_assessment.json` | Acme NDA regression |
+| `acme_nda_review_result.json` | Acme NDA regression review envelope |
+
+Regression baselines use **`{slug}_review_result.json`** and **`{slug}_assessment.json`**; `review_result.json` is only the most recent run.
 
 | Issue | Fix |
 |-------|-----|
 | Mistral 429 during review/sync | Mistral dev profile in `.env` (F1) |
 | Platform review 503 | `start_legal_ai_platform.ps1 -Replace` (F4) |
 | Stale `xecurify_nda_assessment.json` | Re-run review — auto-export updates named file (F2) |
+| §4 IP / §9 liability show IPC only | Expected until liability/IP playbooks are indexed (Phase G); not a retrieval bug |
+
+**Phase G (retrieval routing):** Wrong-policy compare is blocked when no indexed playbook matches section categories, or when relevance/coverage gates veto off-topic hits. Re-run `test_xecurify_policies.py` after deploying review-agent changes.
 
 ---
 

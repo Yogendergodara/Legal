@@ -45,7 +45,7 @@ async def main() -> int:
         print("health:", health.status_code, health.json().get("document_mcp", {}).get("db"))
 
         print(f"\n=== Sync {len(policies)} policies (tenant={tenant}) ===")
-        sync = await sync_policies(http, policies)
+        sync = await sync_policies(http, policies, tenant_id=tenant, replace=True)
         for p in sync.get("policies", []):
             print(f"  - {p.get('title', p.get('policy_ref'))}: {p.get('categories', [])} tagger={p.get('tagger')}")
 

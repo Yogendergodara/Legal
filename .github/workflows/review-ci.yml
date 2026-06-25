@@ -33,6 +33,26 @@ jobs:
       - name: Unit tests (no Postgres)
         run: python -m pytest -m "not integration" -q
 
+  routing-golden:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Legal/review/review_agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -e ../../document_core
+          pip install -e .
+          pip install pytest pytest-asyncio httpx
+      - name: Routing golden gate
+        run: |
+          python -m pytest tests/test_routing_golden.py -q
+          python -c "from tests.test_routing_golden import assert_golden_gate; assert_golden_gate()"
+
   integration:
     runs-on: ubuntu-latest
     services:

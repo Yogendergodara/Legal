@@ -192,7 +192,7 @@ def build_assessment(
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "test_type": test_type,
         "label": label or test_type,
-        "tenant_id": (sync or {}).get("tenant_id"),
+        "tenant_id": (sync or {}).get("tenant_id") or review.get("tenant_id"),
         "contract_document_id": review.get("contract_document_id"),
         "contract_title": metadata.get("contract_title"),
         "via_platform": review.get("via_platform", False),

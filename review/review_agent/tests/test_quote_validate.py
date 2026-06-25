@@ -103,3 +103,49 @@ def test_compliant_empty_policy_quote_allowed_when_aligned() -> None:
         normalized.rationale,
         contract_ok=True,
     )
+
+
+def test_compliant_incorporation_keeps_status_when_policy_paraphrased() -> None:
+    contract_text = (
+        "The Supplier shall comply with Xecurify's Security Practices Policy "
+        "as updated from time to time."
+    )
+    policy_text = "All vendors must follow the Security Practices Policy requirements."
+    result = ComplianceLLMResult(
+        status=ComplianceStatus.COMPLIANT,
+        severity=Severity.INFO,
+        contract_quote=(
+            "The Supplier shall comply with Xecurify's Security Practices Policy "
+            "as updated from time to time."
+        ),
+        policy_quote="vendors must follow Security Practices Policy",
+        rationale="Contract explicitly incorporates Xecurify's Security Practices Policy.",
+        confidence=0.9,
+    )
+    normalized = validate_and_normalize_quotes(
+        result,
+        contract_text=contract_text,
+        policy_text=policy_text,
+        anchor_enabled=False,
+    )
+    assert normalized.status == ComplianceStatus.COMPLIANT
+    assert normalized.policy_quote == ""
+
+
+def test_nc_still_downgraded_when_policy_quote_invalid() -> None:
+    contract_text = "Liability is capped at three months fees."
+    policy_text = "Liability cap must be at least twelve months of fees."
+    result = ComplianceLLMResult(
+        status=ComplianceStatus.NON_COMPLIANT,
+        severity=Severity.CRITICAL,
+        contract_quote="Liability is capped at three months fees.",
+        policy_quote="twelve months minimum cap",
+        rationale="Contract cap is below policy minimum.",
+        confidence=0.9,
+    )
+    normalized = validate_and_normalize_quotes(
+        result,
+        contract_text=contract_text,
+        policy_text=policy_text,
+    )
+    assert normalized.status == ComplianceStatus.INCONCLUSIVE
