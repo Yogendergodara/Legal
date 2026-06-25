@@ -168,3 +168,46 @@ async def test_grounding_quote_rejects_section_mismatch():
     assert ok is False
     assert meta.get("grounding_section_mismatch") is True
     assert meta.get("grounding_matched_section_id") == "8"
+
+
+@pytest.mark.asyncio
+async def test_grounding_keeps_compliant_with_empty_policy_quote(monkeypatch):
+    monkeypatch.setattr(
+        "review_agent.graph.nodes.get_settings",
+        lambda: ReviewSettings(
+            grounding_downgrade_not_drop=True,
+            grounding_rerun_coverage=False,
+            grounding_relax_compliant_empty_policy=True,
+            quote_repair_enabled=False,
+            guard_pass_enabled=False,
+        ),
+    )
+    client = MagicMock()
+    client.verify_quote = AsyncMock(
+        return_value=GroundingCheckResult(
+            grounded=True,
+            quote="Support and respect internationally proclaimed human rights",
+            normalized_quote="support and respect internationally proclaimed human rights",
+        )
+    )
+    client.verify_policy_quote = AsyncMock()
+
+    state = {
+        "tenant_id": "demo",
+        "ingest_result": _ingest_result(),
+        "findings": [
+            _finding(
+                status=ComplianceStatus.COMPLIANT,
+                severity=Severity.INFO,
+                contract_quote="Support and respect internationally proclaimed human rights",
+                policy_quote="",
+                rationale="Contract aligns with the policy human rights requirement.",
+            )
+        ],
+        "indexed_policies": [],
+    }
+    result = await grounding_node(state, client)
+    grounded = result["grounded_findings"]
+    assert len(grounded) == 1
+    assert grounded[0].status == ComplianceStatus.COMPLIANT
+    assert grounded[0].grounded is True

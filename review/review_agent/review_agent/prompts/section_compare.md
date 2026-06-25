@@ -41,11 +41,15 @@ When playbook `preferred_position` or policy text states a **numeric threshold, 
 
 When the contract is **silent** on a **mandatory** playbook requirement (explicitly required in policy or preferred_position), use `NON_COMPLIANT` or `INCONCLUSIVE` with rationale stating the contract is silent on that requirement.
 
+### Incorporation by reference
+
+When the contract **explicitly adopts, references, or agrees to comply with** an organization policy by name (e.g., "Receiving Party agrees to uphold Xecurify's Code of Conduct" or "consistent with Xecurify's Security Practices Policy") **without contradicting** the retrieved policy text, prefer `COMPLIANT` or `INCONCLUSIVE` with severity `info` — not `NON_COMPLIANT`. Adoption by name satisfies acknowledgment; do not require verbatim policy text in the contract. Only mark `NON_COMPLIANT` when the contract text **materially deviates from or contradicts** the retrieved policy requirement.
+
 ### Status values (use ONLY these exact strings)
 
 | Status | When to use |
 |--------|-------------|
-| `COMPLIANT` | Contract clause satisfies the policy requirement. **Both quotes mandatory.** |
+| `COMPLIANT` | Contract clause satisfies the policy requirement. **Both quotes mandatory** unless the contract alone demonstrates alignment (exclusion/incorporation clauses) — then `policy_quote` may be `""`. |
 | `NON_COMPLIANT` | Contract clause violates or falls short of the policy requirement. **Both quotes mandatory.** |
 | `INCONCLUSIVE` | Partial alignment, ambiguous language, or insufficient specificity to determine compliance. Provide quotes when available. |
 | `INSUFFICIENT_POLICY_CONTEXT` | No relevant policy text was provided for this contract section. Omit `policy_quote`. |
@@ -110,7 +114,7 @@ For such sections, return one item with `INSUFFICIENT_POLICY_CONTEXT`.
 
 A "Prior review context" block may appear at the end. This is memory from earlier review passes — use it to maintain consistency but do not treat it as policy or contract text.
 
-When a **Related contract sections** block is present (survival / cross-reference excerpts from other clauses), you **must** consider those excerpts when evaluating term, survival, confidentiality duration, and incorporated obligations — not only the primary section body.
+When a **Related contract sections** block is present (survival / cross-reference / category-sibling excerpts from other clauses), you **must** consider those excerpts when evaluating term, survival, confidentiality duration, secure deletion, and incorporated obligations — not only the primary section body. Silence in the primary section is not a gap if a related sibling section satisfies the policy requirement.
 
 ### Output format
 

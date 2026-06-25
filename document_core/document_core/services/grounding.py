@@ -3,21 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-import re
 
 from document_core.schemas.chunk import GroundingCheckRequest, GroundingCheckResult
+from document_core.services.quote_match import normalize_for_quote_match, quote_matches
 from document_core.store.memory_store import get_store
 from document_core.store.protocol import DocumentStore
 
-_WS_RE = re.compile(r"\s+")
-
 
 def normalize_text(text: str) -> str:
-    return _WS_RE.sub(" ", text.strip().lower())
-
-
-def _match_in_text(quote_norm: str, text: str) -> bool:
-    return quote_norm in normalize_text(text)
+    """Backward-compatible alias for quote normalization."""
+    return normalize_for_quote_match(text)
 
 
 async def _verify_quote_in_section(
@@ -57,7 +52,7 @@ async def _verify_quote_in_section(
             message="section not found",
         )
 
-    if _match_in_text(quote_norm, parent.text or ""):
+    if quote_matches(request.quote, parent.text or ""):
         return GroundingCheckResult(
             grounded=True,
             quote=request.quote,
@@ -99,11 +94,11 @@ async def _verify_quote_document_wide(
 
     seen: set[str] = set()
     for text, section_id in haystacks:
-        key = text[:80]
+        key = (text or "")[:80]
         if key in seen:
             continue
         seen.add(key)
-        if _match_in_text(quote_norm, text):
+        if quote_matches(request.quote, text or ""):
             return GroundingCheckResult(
                 grounded=True,
                 quote=request.quote,
@@ -128,7 +123,7 @@ async def verify_quote(
 ) -> GroundingCheckResult:
     """Substring match on section text when section_id set; else document-wide."""
     doc_store = store or get_store()
-    quote_norm = normalize_text(request.quote)
+    quote_norm = normalize_for_quote_match(request.quote)
     if not quote_norm:
         return GroundingCheckResult(
             grounded=False,

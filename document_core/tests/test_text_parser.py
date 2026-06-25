@@ -100,3 +100,19 @@ c. Low Severity (Level 3): internal network incidents.
     assert len(ids) == len(set(ids)), f"duplicate section_ids: {ids}"
     assert "3" in ids
     assert not any(node.title.startswith("c. Low Severity") for node in all_nodes)
+
+
+def test_numbered_exclusion_prose_not_parsed_as_section_heading():
+    raw = """1. Definitions
+Confidential Information means all non-public information.
+
+1.2 Exclusions
+The obligations do not apply to information that:
+1. Is or becomes publicly available through no act or omission of the Receiving Party;
+2. Was known to the Receiving Party prior to disclosure;
+"""
+    tree = parse_text_to_tree(document_id=uuid4(), title="NDA", text=raw)
+    all_nodes = list(_walk_sections(tree.sections))
+    titles = [node.title for node in all_nodes]
+    assert not any(t.startswith("1. Is or becomes") for t in titles)
+    assert any("Definitions" in t for t in titles)

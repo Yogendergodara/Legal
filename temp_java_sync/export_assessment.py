@@ -5,10 +5,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# Stable basenames for known demo/regression titles (Phase F2).
+ASSESSMENT_SLUG_OVERRIDES: dict[str, str] = {
+    "xecurify": "xecurify_nda",
+    "acme corp": "acme_nda",
+    "acme corp / cloudvendor": "acme_nda",
+}
 
 ROOT = Path(__file__).resolve().parent
 OUTPUTS = ROOT / "outputs"
@@ -126,6 +134,40 @@ def compute_scores(section_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _confidence_from_review(
+    review: dict[str, Any],
+    primary: list[dict[str, Any]],
+    section_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    metadata = (review.get("artifacts") or {}).get("report", {}).get("metadata") or {}
+    embedded = (metadata.get("compliance_stats") or {}).get("review_confidence")
+    if isinstance(embedded, dict) and embedded:
+        return embedded
+
+    total = len(section_rows)
+    counts = Counter(row.get("status") for row in section_rows)
+    inconclusive = counts.get("INCONCLUSIVE", 0)
+    ipc = counts.get("INSUFFICIENT_POLICY_CONTEXT", 0)
+    confident = counts.get("COMPLIANT", 0) + counts.get("NON_COMPLIANT", 0)
+    return {
+        "sections_total": total,
+        "inconclusive_section_pct": round(100 * inconclusive / total, 1) if total else 0.0,
+        "ipc_section_pct": round(100 * ipc / total, 1) if total else 0.0,
+        "confident_section_pct": round(100 * confident / total, 1) if total else 0.0,
+        "downgrade_quote_validate": sum(
+            1
+            for f in primary
+            if "Downgraded: model quotes were not exact substrings"
+            in str(f.get("rationale") or "")
+        ),
+        "downgrade_grounding": sum(
+            1
+            for f in primary
+            if (f.get("metadata") or {}).get("grounding_failed") is True
+        ),
+    }
+
+
 def build_assessment(
     review: dict[str, Any],
     *,
@@ -161,6 +203,7 @@ def build_assessment(
         "finding_count_primary": len(primary),
         "violation_count": len(violations),
         "scores": compute_scores(sections),
+        "confidence": _confidence_from_review(review, primary, sections),
         "summary_markdown": review.get("summary_markdown") or review.get("output") or "",
         "violations": [_slim_finding(v) for v in violations],
         "all_findings": [_slim_finding(f) for f in primary],
@@ -185,6 +228,48 @@ def build_assessment(
             "ui_parity": "summary + all_findings + violations match Dev UI tabs",
         },
     }
+
+
+def assessment_slug(title: str) -> str:
+    """Derive a stable basename for named assessment exports."""
+    lower = title.lower()
+    for needle, slug in ASSESSMENT_SLUG_OVERRIDES.items():
+        if needle in lower:
+            return slug
+    slug = re.sub(r"[^a-z0-9]+", "_", lower).strip("_")
+    return slug[:64] if slug else "review"
+
+
+def export_review_assessments(
+    review_path: Path,
+    *,
+    contract_title: str,
+    sync_path: Path | None = None,
+    test_type: str = "dev_ui_review",
+) -> list[str]:
+    """Write latest + named assessment JSON; return output filenames."""
+    sync = sync_path if sync_path and sync_path.is_file() else None
+    paths: list[str] = []
+    latest = export_assessment(
+        review_path,
+        sync_path=sync,
+        out_path=OUTPUTS / "review_assessment.json",
+        test_type=test_type,
+        label=contract_title,
+    )
+    paths.append(latest.name)
+    slug = assessment_slug(contract_title)
+    named = OUTPUTS / f"{slug}_assessment.json"
+    if named != latest:
+        export_assessment(
+            review_path,
+            sync_path=sync,
+            out_path=named,
+            test_type=test_type,
+            label=contract_title,
+        )
+        paths.append(named.name)
+    return paths
 
 
 def export_assessment(

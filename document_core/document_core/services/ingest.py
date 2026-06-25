@@ -52,7 +52,7 @@ async def ingest_document(
                 settings=settings,
             )
         else:
-            apply_keyword_tags(tree)
+            apply_keyword_tags(tree, document_title=request.title)
             extra_meta = {"auto_tagged": True, "tagger": "keyword"}
 
     meta = {

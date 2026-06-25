@@ -122,7 +122,9 @@ class PgVectorDocumentStore:
             },
         )
 
-        with self._engine.connect() as conn:
+        child_texts = [c.context_text or c.text for c in children]
+
+        with self._engine.begin() as conn:
             existing_hash = conn.execute(
                 text(
                     """
@@ -144,8 +146,7 @@ class PgVectorDocumentStore:
                     {"tenant_id": tenant_id, "document_id": document_id},
                 ).scalar() or 0
 
-        if existing_hash == content_hash and chunk_count > 0:
-            with self._engine.begin() as conn:
+            if existing_hash == content_hash and chunk_count > 0:
                 conn.execute(
                     text(
                         """
@@ -156,17 +157,15 @@ class PgVectorDocumentStore:
                     ),
                     {"tenant_id": tenant_id, "document_id": document_id},
                 )
-            logger.debug(
-                "skip re-index unchanged document tenant=%s document_id=%s",
-                tenant_id,
-                document_id,
-            )
-            return
+                logger.debug(
+                    "skip re-index unchanged document tenant=%s document_id=%s",
+                    tenant_id,
+                    document_id,
+                )
+                return
 
-        child_texts = [c.context_text or c.text for c in children]
-        embeddings = embed_documents(child_texts) if children else []
+            embeddings = embed_documents(child_texts) if children else []
 
-        with self._engine.begin() as conn:
             conn.execute(
                 text(
                     """
@@ -256,6 +255,20 @@ class PgVectorDocumentStore:
                             to_tsvector('english', COALESCE(:context_text, :text)),
                             CAST(:metadata AS jsonb)
                         )
+                        ON CONFLICT (tenant_id, document_id, chunk_id) DO UPDATE SET
+                            chunk_role = EXCLUDED.chunk_role,
+                            parent_id = EXCLUDED.parent_id,
+                            section_id = EXCLUDED.section_id,
+                            section_path = EXCLUDED.section_path,
+                            title = EXCLUDED.title,
+                            text = EXCLUDED.text,
+                            context_text = EXCLUDED.context_text,
+                            kind = EXCLUDED.kind,
+                            policy_type = EXCLUDED.policy_type,
+                            applies_to_contract_types = EXCLUDED.applies_to_contract_types,
+                            embedding = EXCLUDED.embedding,
+                            tsv = EXCLUDED.tsv,
+                            metadata = EXCLUDED.metadata
                         """
                     ),
                     {

@@ -35,10 +35,32 @@ def test_select_hits_category_aligned_prefers_matching_family():
     settings = ReviewSettings(
         compare_policy_hit_mode="category_aligned",
         compare_max_policy_hits=3,
+        compare_hit_min_relevance_score=0.2,
     )
     selected = select_compare_hits(
         hits,
         section_categories=["security"],
+        section_title="Security Measures",
+        settings=settings,
+    )
+    assert len(selected) == 1
+    assert "Security" in selected[0].parent_chunk.text
+
+
+def test_select_hits_drops_low_relevance_aligned_hit():
+    hits = [
+        _policy_hit("Security policy text", categories=["security", "compliance"], score=0.95),
+        _policy_hit("Weak overlap policy", categories=["compliance"], score=0.90),
+    ]
+    settings = ReviewSettings(
+        compare_policy_hit_mode="category_aligned",
+        compare_max_policy_hits=2,
+        compare_hit_min_relevance_score=0.35,
+    )
+    selected = select_compare_hits(
+        hits,
+        section_categories=["security"],
+        section_title="Security Measures",
         settings=settings,
     )
     assert len(selected) == 1

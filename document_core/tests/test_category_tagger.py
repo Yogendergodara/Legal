@@ -50,6 +50,34 @@ def test_keyword_tags_indemnity():
     assert "indemnity" in cats
 
 
+def test_keyword_slavery_not_sla():
+    cats = infer_section_categories_keyword(
+        title="Code of Conduct",
+        text="We prohibit modern slavery and human trafficking in our supply chain.",
+    )
+    assert "sla" not in cats
+    assert "modern_slavery" in cats or "human_rights" in cats
+
+
+def test_keyword_brand_security_not_cyber_security():
+    cats = infer_section_categories_keyword(
+        title="Logo Guidelines",
+        text="Partners must follow brand security requirements for logo placement.",
+    )
+    assert "security" not in cats
+    assert "trademark" in cats or "ip" in cats
+
+
+def test_cap_via_tagger_drops_broad_tags():
+    from document_core.schemas.taxonomy import cap_section_categories
+
+    capped = cap_section_categories(
+        ["privacy", "compliance", "security", "data_subject_rights"],
+        max_tags=3,
+    )
+    assert capped == ["privacy", "data_subject_rights"]
+
+
 @pytest.mark.asyncio
 async def test_tag_policy_sections_keyword(keyword_settings):
     tree = parse_text_to_tree(document_id=uuid4(), title="Policy", text=SAMPLE_POLICY)

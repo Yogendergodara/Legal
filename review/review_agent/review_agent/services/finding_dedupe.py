@@ -16,11 +16,40 @@ _SEVERITY_RANK = {
     Severity.INFO: 1,
 }
 
+_DIMENSION_ALIASES: dict[str, frozenset[str]] = {
+    "secure deletion": frozenset(
+        {"secure deletion", "secure deletion requirements", "deletion", "destruction"}
+    ),
+    "data principal rights": frozenset(
+        {"data principal rights", "data subject rights", "gdpr", "dpdpa", "erasure"}
+    ),
+    "code of conduct": frozenset(
+        {"code of conduct", "conduct acknowledgment", "conduct principles"}
+    ),
+    "security measures": frozenset(
+        {"security measures", "encryption", "access control", "mfa"}
+    ),
+    "data retention": frozenset(
+        {"data retention", "retention period", "retention requirements"}
+    ),
+}
+
 
 def normalize_dimension_label(label: str) -> str:
     """Lowercase, strip punctuation, collapse whitespace."""
     cleaned = re.sub(r"[^\w\s]", " ", (label or "").strip().lower())
     return " ".join(cleaned.split())
+
+
+def dimension_topic_key(label: str) -> str:
+    """Cluster dimension labels that refer to the same compliance topic."""
+    normalized = normalize_dimension_label(label)
+    if not normalized:
+        return ""
+    for topic, aliases in _DIMENSION_ALIASES.items():
+        if any(alias in normalized for alias in aliases):
+            return topic
+    return normalized
 
 
 def _normalize_quote(quote: str) -> str:
@@ -189,6 +218,44 @@ def cap_compare_items_by_section(
     return gaps + kept_work, capped_total, warnings
 
 
+def suppress_contradicted_non_compliant(
+    items: list[SectionCompareItem],
+    *,
+    settings: ReviewSettings | None = None,
+) -> tuple[list[SectionCompareItem], int]:
+    """Drop NON_COMPLIANT when same dimension is COMPLIANT elsewhere (cross-section)."""
+    cfg = settings or get_settings()
+    by_dimension: dict[str, list[SectionCompareItem]] = defaultdict(list)
+    for item in items:
+        if is_gap_compare_item(item):
+            continue
+        label = item.dimension_label or item.section_id
+        key = (
+            dimension_topic_key(label)
+            if cfg.finding_dedupe_topic_cluster
+            else normalize_dimension_label(label)
+        )
+        by_dimension[key].append(item)
+
+    drop_ids: set[int] = set()
+    for group in by_dimension.values():
+        compliant = [
+            item
+            for item in group
+            if item.status == ComplianceStatus.COMPLIANT and (item.contract_quote or "").strip()
+        ]
+        if not compliant:
+            continue
+        for item in group:
+            if item.status == ComplianceStatus.NON_COMPLIANT:
+                drop_ids.add(id(item))
+
+    if not drop_ids:
+        return items, 0
+    kept = [item for item in items if id(item) not in drop_ids]
+    return kept, len(drop_ids)
+
+
 def prepare_compare_items_for_merge(
     items: list[SectionCompareItem],
     *,
@@ -196,6 +263,12 @@ def prepare_compare_items_for_merge(
 ) -> tuple[list[SectionCompareItem], int, int, list[str]]:
     """Dedupe then cap compare items before merge."""
     cfg = settings or get_settings()
+    items, contradiction_removed = suppress_contradicted_non_compliant(items, settings=cfg)
+    equivalence_removed = 0
+    if cfg.equivalence_guard_enabled:
+        from review_agent.services.equivalence_guard import apply_equivalence_guard
+
+        items, equivalence_removed = apply_equivalence_guard(items)
     deduped, dedupe_removed = dedupe_compare_items(
         items,
         across_policies=cfg.finding_dedupe_across_policies,
@@ -205,6 +278,14 @@ def prepare_compare_items_for_merge(
         cfg.section_compare_max_findings_per_section,
     )
     warnings: list[str] = []
+    if contradiction_removed:
+        warnings.append(
+            f"suppressed {contradiction_removed} contradicted NON_COMPLIANT finding(s)"
+        )
+    if equivalence_removed:
+        warnings.append(
+            f"equivalence guard upgraded {equivalence_removed} finding(s)"
+        )
     if dedupe_removed:
         warnings.append(f"deduped {dedupe_removed} duplicate compare item(s)")
     warnings.extend(cap_warnings)

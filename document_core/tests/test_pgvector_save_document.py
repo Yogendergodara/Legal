@@ -53,7 +53,7 @@ def test_save_document_has_no_nested_begin_blocks():
     from document_core.store import pgvector_store
 
     source = inspect.getsource(pgvector_store.PgVectorDocumentStore.save_document)
-    assert source.count("with self._engine.begin()") == 2
+    assert source.count("with self._engine.begin()") == 1
     assert "with self._engine.begin() as conn:\n                with self._engine.begin()" not in source
 
 

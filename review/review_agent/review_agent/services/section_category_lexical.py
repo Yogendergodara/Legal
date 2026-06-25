@@ -50,6 +50,14 @@ _CATEGORY_KEYWORDS: tuple[tuple[str, str], ...] = (
     ),
     (r"\bghg\b|greenhouse gas|\bcdp\b|carbon emission|emissions reduction|climate target", "environment"),
     (r"sustainability|circular design|circular econom|environmental impact", "sustainability"),
+    (r"secure delet|secure destruction|irreversibly delet", "secure_deletion"),
+    (r"legal hold|litigation hold|preservation notice", "legal_hold"),
+    (r"data subject rights|data principal|\bgdpr\b|\bdpdpa\b", "data_subject_rights"),
+    (r"incident report|security incident|incident response", "incident_reporting"),
+    (r"breach notif|notify.*breach", "breach_notification"),
+    (r"trademark|logo usage|brand guideline", "trademark"),
+    (r"anti.?brib|\bfcpa\b|kickback", "anti_bribery"),
+    (r"\baml\b|money laundering|\bkyc\b", "aml"),
 )
 
 _CATEGORY_QUERY_TERMS: dict[str, tuple[str, ...]] = {

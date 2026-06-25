@@ -232,6 +232,22 @@ async def grounding_node(state: ReviewState, client: DocumentMCPClient) -> dict[
             quote_meta.update(policy_meta)
 
         ok = contract_ok and policy_ok
+        if (
+            not ok
+            and settings.grounding_relax_compliant_empty_policy
+            and finding.status == ComplianceStatus.COMPLIANT
+            and contract_ok
+            and not (finding.policy_quote or "").strip()
+        ):
+            from review_agent.services.quote_validate import allows_empty_policy_quote
+
+            if allows_empty_policy_quote(
+                finding.status,
+                finding.rationale,
+                contract_ok=contract_ok,
+            ):
+                ok = True
+                policy_ok = True
         if ok:
             meta = dict(finding.metadata or {})
             meta.update(quote_meta)
@@ -345,6 +361,13 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
     gap_summary = gap_status_summary(findings)
     gap_summary["compare_omitted_recovered"] = int(
         (state.get("final_verify_stats") or {}).get("compare_omitted_recovered") or 0
+    )
+    from review_agent.services.review_confidence import compute_review_confidence_metrics
+
+    reviewable_count = int(coverage_meta.get("reviewable_count") or 0)
+    stats["review_confidence"] = compute_review_confidence_metrics(
+        findings,
+        sections_total=reviewable_count or None,
     )
     report = ReviewReport(
         tenant_id=state["tenant_id"],

@@ -9,7 +9,8 @@ from document_core.config import DocumentCoreSettings, get_settings
 from document_core.llm.ingest_llm import invoke_structured_json, llm_api_key_available
 from document_core.schemas.category_tag import BatchSectionCategoryTagResult
 from document_core.schemas.chunk import DocumentTree, SectionNode
-from document_core.schemas.taxonomy import normalize_categories, taxonomy_prompt_labels
+from document_core.schemas.taxonomy import cap_section_categories, normalize_categories, taxonomy_prompt_labels
+from document_core.services.document_tag_priors import apply_document_priors, document_prior_hint
 from document_core.services.metadata_at_ingest import infer_section_categories_keyword
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,30 @@ def _iter_sections(nodes: list[SectionNode]):
         yield from _iter_sections(node.children)
 
 
-def apply_keyword_tags(tree: DocumentTree) -> None:
+def _finalize_categories(
+    categories: list[str],
+    *,
+    document_title: str,
+    settings: DocumentCoreSettings,
+) -> list[str]:
+    capped = cap_section_categories(
+        apply_document_priors(categories, document_title=document_title),
+        max_tags=settings.category_tagger_max_tags_per_section,
+    )
+    return capped or ["general"]
+
+
+def apply_keyword_tags(
+    tree: DocumentTree,
+    *,
+    document_title: str = "",
+    settings: DocumentCoreSettings | None = None,
+) -> None:
+    cfg = settings or get_settings()
+    title = document_title or getattr(tree, "title", "") or ""
     for node in _iter_sections(tree.sections):
-        node.categories = infer_section_categories_keyword(title=node.title, text=node.text)
+        raw = infer_section_categories_keyword(title=node.title, text=node.text)
+        node.categories = _finalize_categories(raw, document_title=title, settings=cfg)
 
 
 def _sections_block(nodes: list[SectionNode], max_chars: int) -> str:
@@ -51,6 +73,7 @@ async def _tag_llm_batches(
 ) -> None:
     template = _PROMPT_PATH.read_text(encoding="utf-8")
     labels = taxonomy_prompt_labels()
+    prior_hint = document_prior_hint(document_title) or "None."
     by_id = {node.section_id: node for node in nodes}
 
     for start in range(0, len(nodes), settings.category_tagger_batch_size):
@@ -58,6 +81,7 @@ async def _tag_llm_batches(
         prompt = template.format(
             taxonomy_labels=labels,
             document_title=document_title,
+            prior_hint=prior_hint,
             sections_block=_sections_block(batch, settings.category_tagger_max_section_chars),
         )
         system, user = _split_prompt(prompt)
@@ -72,15 +96,23 @@ async def _tag_llm_batches(
             node = by_id.get(item.section_id)
             if node is None:
                 continue
-            cats = normalize_categories(item.categories)[:3]
+            cats = normalize_categories(item.categories)
             if not cats or cats == ["general"]:
-                node.categories = infer_section_categories_keyword(title=node.title, text=node.text)
-            else:
-                node.categories = cats
+                cats = infer_section_categories_keyword(title=node.title, text=node.text)
+            node.categories = _finalize_categories(
+                cats,
+                document_title=document_title,
+                settings=settings,
+            )
 
     for node in nodes:
         if not node.categories:
-            node.categories = infer_section_categories_keyword(title=node.title, text=node.text)
+            raw = infer_section_categories_keyword(title=node.title, text=node.text)
+            node.categories = _finalize_categories(
+                raw,
+                document_title=document_title,
+                settings=settings,
+            )
 
 
 async def tag_policy_sections(
@@ -105,5 +137,5 @@ async def tag_policy_sections(
         except Exception as exc:
             logger.warning("category tagger LLM failed, using keyword fallback: %s", exc)
 
-    apply_keyword_tags(tree)
+    apply_keyword_tags(tree, document_title=document_title, settings=cfg)
     return tree, {"auto_tagged": True, "tagger": "keyword"}

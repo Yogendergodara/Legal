@@ -396,9 +396,11 @@ async def compare_all_sections(
 ) -> tuple[list[SectionCompareItem], list[str], dict[str, int | float | str]]:
     cfg = settings or get_settings()
     hits_by_section = {s.section_id: bundles.get(s.section_id, []) for s in sections}
+    titles_by_section = {s.section_id: (s.title or s.section_id) for s in sections}
     filtered_hits, hit_selection_stats = filter_hits_for_compare(
         hits_by_section,
         categories_by_section,
+        section_titles_by_id=titles_by_section,
         settings=cfg,
     )
 

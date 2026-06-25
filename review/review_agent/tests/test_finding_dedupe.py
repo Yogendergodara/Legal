@@ -8,6 +8,7 @@ from review_agent.services.finding_dedupe import (
     cap_compare_items_by_section,
     dedupe_compare_items,
     is_gap_compare_item,
+    suppress_contradicted_non_compliant,
 )
 
 
@@ -125,3 +126,46 @@ def test_gap_items_not_deduped() -> None:
     capped, removed_cap, _warnings = cap_compare_items_by_section([gap, gap], 1)
     assert removed_cap == 0
     assert len(capped) == 2
+
+
+def test_suppress_contradicted_non_compliant_across_sections() -> None:
+    compliant = _item(
+        section_id="3.2",
+        dimension_label="Secure Deletion",
+        status=ComplianceStatus.COMPLIANT,
+        contract_quote="Securely delete all Confidential Information",
+    )
+    conflict = _item(
+        section_id="2.1",
+        dimension_label="Secure Deletion",
+        status=ComplianceStatus.NON_COMPLIANT,
+        contract_quote="Hold all Confidential Information in strict confidence",
+    )
+    kept, removed = suppress_contradicted_non_compliant([compliant, conflict])
+    assert removed == 1
+    assert len(kept) == 1
+    assert kept[0].status == ComplianceStatus.COMPLIANT
+
+
+def test_suppress_contradicted_with_mismatched_dimension_labels() -> None:
+    from review_agent.services.finding_dedupe import dimension_topic_key
+
+    assert dimension_topic_key("Secure Deletion of Confidential Information") == (
+        dimension_topic_key("Secure Deletion Requirements")
+    )
+    compliant = _item(
+        section_id="3.2",
+        dimension_label="Secure Deletion Requirements",
+        status=ComplianceStatus.COMPLIANT,
+        contract_quote="Securely delete all Confidential Information",
+    )
+    conflict = _item(
+        section_id="2.1",
+        dimension_label="Secure Deletion of Confidential Information",
+        status=ComplianceStatus.NON_COMPLIANT,
+        contract_quote="Hold all Confidential Information in strict confidence",
+    )
+    kept, removed = suppress_contradicted_non_compliant([compliant, conflict])
+    assert removed == 1
+    assert len(kept) == 1
+    assert kept[0].section_id == "3.2"

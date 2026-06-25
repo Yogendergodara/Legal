@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -27,7 +30,7 @@ from review_agent.config import get_settings as get_review_settings  # noqa: E40
 from review_agent.errors import RecoverableError  # noqa: E402
 from review_agent.graph.review_graph import run_review  # noqa: E402
 from review_output import build_platform_review_payload, build_review_output_envelope  # noqa: E402
-from export_assessment import export_assessment  # noqa: E402
+from export_assessment import export_review_assessments  # noqa: E402
 from sync_service import (  # noqa: E402
     OUTPUTS,
     fixture_contract_raw_text,
@@ -219,15 +222,15 @@ async def _run_review(
     (OUTPUTS / "review_result.json").write_text(json.dumps(envelope, indent=2), encoding="utf-8")
     try:
         sync_path = OUTPUTS / "sync_result.json"
-        export_assessment(
+        envelope["assessment_paths"] = export_review_assessments(
             OUTPUTS / "review_result.json",
+            contract_title=contract_title,
             sync_path=sync_path if sync_path.is_file() else None,
-            out_path=OUTPUTS / "review_assessment.json",
             test_type="dev_ui_review",
-            label=contract_title,
         )
-    except Exception:  # noqa: BLE001 — assessment export must not fail review
-        pass
+    except Exception as exc:  # noqa: BLE001 — assessment export must not fail review
+        logger.warning("assessment export failed: %s", exc)
+        envelope.setdefault("warnings", []).append(f"assessment_export: {exc}")
     return envelope
 
 

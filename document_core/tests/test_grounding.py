@@ -120,3 +120,24 @@ async def test_verify_quote_document_wide_without_section_id():
     )
     assert result.grounded is True
     assert result.section_id in {"8", "3", None}
+
+
+@pytest.mark.asyncio
+async def test_verify_quote_matches_bullet_list_quote():
+    doc_id = uuid4()
+    text = (
+        "Support and respect internationally proclaimed human rights; "
+        "Ensure all work is performed voluntarily"
+    )
+    section = _parent("5.2", text, document_id=doc_id)
+    store = _FakeStore(sections=[section], canonical=text)
+    result = await verify_quote(
+        GroundingCheckRequest(
+            tenant_id="demo",
+            document_id=doc_id,
+            quote="• Support and respect internationally proclaimed human rights",
+            section_id="5.2",
+        ),
+        store=store,
+    )
+    assert result.grounded is True

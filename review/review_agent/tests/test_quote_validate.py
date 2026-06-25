@@ -3,7 +3,9 @@
 from document_core.schemas.compliance import ComplianceStatus, Severity
 from review_agent.schemas.compliance_llm import ComplianceLLMResult
 from review_agent.services.quote_validate import (
+    allows_empty_policy_quote,
     anchor_quote_in_haystack,
+    quote_is_substring,
     truncate_section,
     validate_and_normalize_quotes,
 )
@@ -71,3 +73,33 @@ def test_validate_nc_kept_after_anchor():
     assert normalized.status == ComplianceStatus.NON_COMPLIANT
     assert normalized.contract_quote in contract_text
 
+
+def test_bullet_quote_matches_contract_text() -> None:
+    contract_text = "Support and respect internationally proclaimed human rights"
+    assert quote_is_substring(
+        "• Support and respect internationally proclaimed human rights",
+        contract_text,
+    )
+
+
+def test_compliant_empty_policy_quote_allowed_when_aligned() -> None:
+    contract_text = "Is or becomes publicly available through no act or omission"
+    result = ComplianceLLMResult(
+        status=ComplianceStatus.COMPLIANT,
+        severity=Severity.INFO,
+        contract_quote="Is or becomes publicly available through no act or omission",
+        policy_quote="",
+        rationale="Contract aligns with the policy exclusion for public information.",
+        confidence=0.9,
+    )
+    normalized = validate_and_normalize_quotes(
+        result,
+        contract_text=contract_text,
+        policy_text="Sensitive Data means protected information.",
+    )
+    assert normalized.status == ComplianceStatus.COMPLIANT
+    assert allows_empty_policy_quote(
+        ComplianceStatus.COMPLIANT,
+        normalized.rationale,
+        contract_ok=True,
+    )

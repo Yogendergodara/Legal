@@ -7,6 +7,7 @@ from typing import Literal
 from document_core.schemas.chunk import RetrievalHit
 from document_core.schemas.taxonomy import normalize_categories
 from review_agent.config import ReviewSettings, get_settings
+from review_agent.services.retrieval_relevance import score_hit_relevance
 
 ComparePolicyHitMode = Literal["all_top_k", "category_aligned", "primary_only"]
 
@@ -24,6 +25,7 @@ def select_compare_hits(
     hits: list[RetrievalHit],
     *,
     section_categories: list[str],
+    section_title: str = "",
     settings: ReviewSettings | None = None,
 ) -> list[RetrievalHit]:
     """Return policy hits to include in compare prompt (post-rerank order preserved)."""
@@ -39,13 +41,28 @@ def select_compare_hits(
         cap = max(1, cfg.retrieval_final_top_k)
         return hits[:cap]
 
-    # category_aligned (default)
     cap = max(1, cfg.compare_max_policy_hits)
     section_cats = set(normalize_categories(section_categories or []))
     if section_cats:
         aligned = [h for h in hits if section_cats.intersection(_hit_categories(h))]
         if aligned:
-            return aligned[:cap]
+            scored = [
+                (
+                    hit,
+                    score_hit_relevance(
+                        hit,
+                        section_categories=section_categories,
+                        section_title=section_title,
+                    ),
+                )
+                for hit in aligned
+            ]
+            min_score = cfg.compare_hit_min_relevance_score
+            filtered = [(hit, score) for hit, score in scored if score >= min_score]
+            if filtered:
+                filtered.sort(key=lambda pair: pair[1], reverse=True)
+                return [hit for hit, _ in filtered[:cap]]
+            return hits[:1]
     return hits[:1]
 
 
@@ -53,11 +70,13 @@ def filter_hits_for_compare(
     hits_by_section: dict[str, list[RetrievalHit]],
     categories_by_section: dict[str, list[str]] | None,
     *,
+    section_titles_by_id: dict[str, str] | None = None,
     settings: ReviewSettings | None = None,
 ) -> tuple[dict[str, list[RetrievalHit]], dict[str, int | float | str]]:
     """Filter each section's hits; return stats for ops metadata."""
     cfg = settings or get_settings()
     categories_by_section = categories_by_section or {}
+    titles = section_titles_by_id or {}
     filtered: dict[str, list[RetrievalHit]] = {}
     category_aligned = 0
     fallback_primary = 0
@@ -70,6 +89,7 @@ def filter_hits_for_compare(
         selected = select_compare_hits(
             hits,
             section_categories=section_cats,
+            section_title=titles.get(section_id, section_id),
             settings=cfg,
         )
         hits_out += len(selected)

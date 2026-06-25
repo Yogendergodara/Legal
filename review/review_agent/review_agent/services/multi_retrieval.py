@@ -16,6 +16,15 @@ from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import ReviewSettings, get_settings
 from review_agent.schemas.section_classify import SectionCategoryResult
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
+from review_agent.services.named_policy_routing import (
+    extract_named_policy_title_keys,
+    resolve_named_policy_doc_ids,
+)
+from review_agent.services.policy_coverage import (
+    catalog_doc_categories,
+    filter_doc_ids_by_category_overlap,
+)
+from review_agent.services.retrieval_relevance import filter_hits_by_relevance
 from review_agent.services.section_classifier import classify_section_policies
 
 logger = logging.getLogger(__name__)
@@ -86,6 +95,12 @@ def _is_general_only(categories: list[str]) -> bool:
     return not normalized or normalized == ["general"]
 
 
+def _specific_categories_for_overlap(categories: list[str]) -> set[str]:
+    from review_agent.services.retrieval_relevance import _specific_categories
+
+    return _specific_categories(categories)
+
+
 def _query_for_attempt(
     classification: SectionCategoryResult,
     section: IndexedChunk,
@@ -136,6 +151,7 @@ async def _resolve_filter_document_ids(
     scope_document_ids: list[str] | None,
     category_hard_filter: bool,
     cfg: ReviewSettings,
+    policy_catalog: list[dict] | None = None,
 ) -> tuple[list[UUID] | None, dict[str, Any]]:
     filter_meta: dict[str, Any] = {"category_hard_filter": category_hard_filter}
     scope_set = _parse_scope_ids(scope_document_ids)
@@ -160,6 +176,22 @@ async def _resolve_filter_document_ids(
         return [], filter_meta
 
     doc_ids = list(category_ids)
+    if doc_ids and policy_catalog:
+        catalog_cats = catalog_doc_categories(policy_catalog)
+        specific = _specific_categories_for_overlap(categories)
+        min_overlap = cfg.retrieval_category_min_overlap
+        if min_overlap <= 0:
+            min_overlap = 2 if len(specific) >= 2 else 1
+        if specific:
+            doc_ids = filter_doc_ids_by_category_overlap(
+                doc_ids,
+                section_categories=categories,
+                catalog_categories=catalog_cats,
+                min_overlap=min_overlap,
+            )
+            filter_meta["category_overlap_min"] = min_overlap
+            filter_meta["category_overlap_doc_count"] = len(doc_ids)
+
     if scope_set:
         if doc_ids:
             doc_ids = [doc_id for doc_id in doc_ids if str(doc_id) in scope_set]
@@ -275,6 +307,7 @@ async def multi_retrieve_for_section(
     classification: SectionCategoryResult | None = None,
     scope_document_ids: list[str] | None = None,
     contract_routing: dict[str, Any] | None = None,
+    policy_catalog: list[dict] | None = None,
 ) -> SectionRetrievalBundle:
     """Dense + FTS + metadata retrieval with retry ladder and category filtering."""
     cfg = settings or get_settings()
@@ -305,6 +338,19 @@ async def multi_retrieve_for_section(
             classification.categories
         ):
             use_category_filter = False
+
+        named_doc_ids: list[str] = []
+        if (
+            attempt_index == 0
+            and cfg.named_policy_routing_enabled
+            and policy_catalog
+        ):
+            keys = extract_named_policy_title_keys(section.text or "")
+            named_doc_ids = resolve_named_policy_doc_ids(keys, policy_catalog)
+            if named_doc_ids:
+                filter_meta["named_policy_keys"] = keys
+                filter_meta["named_policy_doc_ids"] = named_doc_ids
+
         filter_doc_ids, resolve_meta = await _resolve_filter_document_ids(
             client,
             tenant_id=tenant_id,
@@ -313,9 +359,26 @@ async def multi_retrieve_for_section(
             scope_document_ids=scope_document_ids,
             category_hard_filter=use_category_filter,
             cfg=cfg,
+            policy_catalog=policy_catalog,
         )
         if attempt_index == 0:
+            filter_meta = {**filter_meta, **resolve_meta}
+        elif not filter_meta:
             filter_meta = resolve_meta
+
+        if named_doc_ids and attempt_index == 0:
+            scope_set = _parse_scope_ids(scope_document_ids)
+            routed = [
+                UUID(doc_id)
+                for doc_id in named_doc_ids
+                if not scope_set or doc_id in scope_set
+            ]
+            if routed:
+                if filter_doc_ids is None:
+                    filter_doc_ids = routed
+                else:
+                    filter_doc_ids = [doc_id for doc_id in filter_doc_ids if doc_id in routed] or routed
+                filter_meta["named_policy_routing_applied"] = True
 
         if use_category_filter and filter_doc_ids is not None and not filter_doc_ids:
             step = {
@@ -351,6 +414,18 @@ async def multi_retrieve_for_section(
         if step["final_count"] > 0:
             break
 
+    relevance_dropped = 0
+    if hits and cfg.retrieval_relevance_gate_enabled:
+        relevant, dropped = filter_hits_by_relevance(
+            hits,
+            section_categories=classification.categories,
+            section_title=section.title or section.section_id,
+            min_score=cfg.retrieval_relevance_min_score,
+        )
+        if relevant:
+            relevance_dropped = len(dropped)
+            hits = relevant
+
     paths: dict[str, Any] = {
         "categories": classification.categories,
         "query_terms": classification.query_terms,
@@ -363,6 +438,8 @@ async def multi_retrieve_for_section(
         "metadata_count": winning_step.get("metadata_count", 0),
         "union_count": winning_step.get("union_count", 0),
     }
+    if relevance_dropped:
+        paths["relevance_dropped"] = relevance_dropped
     if winning_step.get("reranker_used"):
         paths["reranker_used"] = winning_step["reranker_used"]
     if winning_step.get("reranker_backend"):

@@ -1,10 +1,33 @@
-"""Ingest-time policy category inference (document_core only — no normalization imports)."""
+"""Ingest-time policy category inference (document_core only)."""
 
 from __future__ import annotations
 
 import re
 
 from document_core.schemas.taxonomy import STANDARD_POLICY_CATEGORIES, normalize_categories
+
+_BOUNDARY_TOKENS = frozenset({"sla", "ip", "hr", "ai", "dr", "mss", "aml"})
+
+# Regex patterns checked before plain phrases (more specific first).
+_CATEGORY_REGEX: tuple[tuple[str, str], ...] = (
+    (r"modern slavery", "modern_slavery"),
+    (r"forced labor|forced labour", "forced_labor"),
+    (r"human rights", "human_rights"),
+    (r"\bsla\b|service level agreement", "sla"),
+    (
+        r"\binformation security\b|\bcybersecurity\b|\bsecurity control\b|"
+        r"\bdata security\b|\baccess control\b",
+        "security",
+    ),
+    (r"secure delet|secure destruction|irreversibly delet", "secure_deletion"),
+    (r"legal hold|litigation hold", "legal_hold"),
+    (r"data subject rights|data principal|\bgdpr\b|\bdpdpa\b", "data_subject_rights"),
+    (r"incident response|incident report|security incident", "incident_reporting"),
+    (r"breach notif|notify.*breach", "breach_notification"),
+    (r"trademark|logo usage|logo/trademark", "trademark"),
+    (r"anti.?brib|\bfcpa\b|kickback", "anti_bribery"),
+    (r"\baml\b|money laundering", "aml"),
+)
 
 _CATEGORY_PHRASES: tuple[tuple[str, str], ...] = (
     ("code of conduct", "compliance"),
@@ -18,6 +41,7 @@ _CATEGORY_PHRASES: tuple[tuple[str, str], ...] = (
     ("indemnify", "indemnity"),
     ("hold harmless", "indemnity"),
     ("data protection", "privacy"),
+    ("data retention", "data_retention"),
     ("governing law", "governing_law"),
     ("intellectual property", "ip"),
     ("termination", "termination"),
@@ -32,39 +56,80 @@ _CATEGORY_PHRASES: tuple[tuple[str, str], ...] = (
     ("employment", "employment"),
     ("compliance", "compliance"),
     ("conduct", "compliance"),
-    ("security", "security"),
-    ("human rights", "human_rights"),
-    ("sla", "sla"),
+    ("logo guidelines", "trademark"),
+    ("logo usage", "trademark"),
 )
 
 
-def _infer_categories(*, title: str, section_texts: list[str]) -> list[str]:
-    haystack = " ".join([title, *section_texts[:2]])[:4000].lower()
-    found: list[str] = []
-    seen: set[str] = set()
+def _phrase_matches(phrase: str, text: str) -> bool:
+    if phrase in _BOUNDARY_TOKENS or len(phrase) <= 3:
+        return bool(
+            re.search(rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])", text, re.IGNORECASE)
+        )
+    return phrase in text
 
-    for phrase, category in _CATEGORY_PHRASES:
+
+def _match_regex_patterns(text: str, seen: set[str], found: list[str]) -> None:
+    for pattern, category in _CATEGORY_REGEX:
         if category in seen:
             continue
-        if phrase in haystack:
+        if re.search(pattern, text, re.IGNORECASE):
             seen.add(category)
             found.append(category)
 
-    token_source = title.lower()
-    for token in re.split(r"[^a-z0-9]+", token_source):
+
+def _match_phrases(text: str, seen: set[str], found: list[str]) -> None:
+    lowered = text.lower()
+    for phrase, category in _CATEGORY_PHRASES:
+        if category in seen:
+            continue
+        if _phrase_matches(phrase, lowered):
+            seen.add(category)
+            found.append(category)
+
+
+def _match_title_tokens(title: str, seen: set[str], found: list[str]) -> None:
+    for token in re.split(r"[^a-z0-9]+", title.lower()):
         if not token or token in seen:
+            continue
+        if not re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", title.lower()):
             continue
         for cat in normalize_categories([token]):
             if cat in STANDARD_POLICY_CATEGORIES and cat != "general" and cat not in seen:
                 seen.add(cat)
                 found.append(cat)
 
-    return found or ["general"]
-
 
 def infer_section_categories_keyword(*, title: str, text: str) -> list[str]:
     """Per-section keyword/phrase infer; returns 1+ categories or ['general']."""
-    return _infer_categories(title=title, section_texts=[text])
+    title_hay = (title or "").strip()
+    body_hay = (text or "")[:2000]
+    found: list[str] = []
+    seen: set[str] = set()
+
+    combined = f"{title_hay} {body_hay}".strip()
+    if not combined:
+        return ["general"]
+
+    _match_regex_patterns(title_hay, seen, found)
+    _match_phrases(title_hay, seen, found)
+    _match_title_tokens(title_hay, seen, found)
+
+    _match_regex_patterns(body_hay, seen, found)
+    _match_phrases(body_hay, seen, found)
+
+    return found or ["general"]
+
+
+def _infer_categories(*, title: str, section_texts: list[str]) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for section_text in section_texts[:3]:
+        for cat in infer_section_categories_keyword(title=title, text=section_text):
+            if cat not in seen:
+                seen.add(cat)
+                found.append(cat)
+    return found or ["general"]
 
 
 def _explicit_categories(provided: list[str] | None, metadata: dict | None) -> list[str]:

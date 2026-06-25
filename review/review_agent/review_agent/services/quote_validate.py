@@ -2,9 +2,19 @@
 
 from __future__ import annotations
 
+import re
+
 from document_core.schemas.compliance import ComplianceStatus, Severity
+from document_core.services.quote_match import quote_matches
 
 from review_agent.schemas.compliance_llm import ComplianceLLMResult
+
+_ALIGNMENT_RATIONALE = re.compile(
+    r"(?i)\b("
+    r"aligns? with|no deviation|satisfies|incorporation|adopted by reference|"
+    r"consistent with|complies with|matches the policy"
+    r")\b"
+)
 
 
 def truncate_section(text: str, max_chars: int) -> str:
@@ -21,14 +31,21 @@ def truncate_section(text: str, max_chars: int) -> str:
 
 
 def quote_is_substring(quote: str, haystack: str) -> bool:
-    q = quote.strip()
-    if not q:
-        return False
-    if q in haystack:
-        return True
-    normalized_q = " ".join(q.split())
-    normalized_h = " ".join(haystack.split())
-    return normalized_q in normalized_h
+    return quote_matches(quote, haystack)
+
+
+def allows_empty_policy_quote(
+    status: ComplianceStatus,
+    rationale: str,
+    *,
+    contract_ok: bool,
+) -> bool:
+    """COMPLIANT findings may omit policy_quote when contract grounds alignment."""
+    return (
+        status == ComplianceStatus.COMPLIANT
+        and contract_ok
+        and bool(_ALIGNMENT_RATIONALE.search(rationale or ""))
+    )
 
 
 def anchor_quote_in_haystack(
@@ -104,6 +121,12 @@ def validate_and_normalize_quotes(
                     quote_stats["compare_quote_anchored"] = quote_stats.get("compare_quote_anchored", 0) + 1
 
     if result.status in (ComplianceStatus.COMPLIANT, ComplianceStatus.NON_COMPLIANT):
+        if allows_empty_policy_quote(
+            result.status,
+            result.rationale,
+            contract_ok=contract_ok,
+        ) and not (result.policy_quote or "").strip():
+            policy_ok = True
         if not contract_ok or not policy_ok:
             return ComplianceLLMResult(
                 status=ComplianceStatus.INCONCLUSIVE,

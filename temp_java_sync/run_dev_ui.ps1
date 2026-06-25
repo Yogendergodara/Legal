@@ -49,8 +49,8 @@ $listeners = Get-PortListenerPids -Port $port
 if ($listeners.Count -gt 0) {
     if ($Replace) {
         Write-Host "Stopping existing listener(s) on port ${port}: $($listeners -join ', ')"
-        foreach ($pid in $listeners) {
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+        foreach ($listenerPid in $listeners) {
+            Stop-Process -Id $listenerPid -Force -ErrorAction SilentlyContinue
         }
         Start-Sleep -Seconds 1
     } else {
@@ -63,5 +63,10 @@ if ($listeners.Count -gt 0) {
 
 Write-Host "Dev UI -> http://localhost:$port"
 Write-Host "Requires document-mcp on port 8003 (and LLM_API_KEY for review)."
+try {
+    $null = Invoke-WebRequest -Uri "http://localhost:8080/agents" -TimeoutSec 2 -UseBasicParsing
+} catch {
+    Write-Host "Platform :8080 not running - use Run review (direct), or: Legal ai\scripts\start_legal_ai_platform.ps1 -Replace"
+}
 $env:DEV_UI_PORT = "$port"
 & python dev_ui_server.py

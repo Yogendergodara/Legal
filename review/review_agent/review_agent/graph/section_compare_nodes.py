@@ -9,6 +9,7 @@ from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import get_settings
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.final_verify_llm import run_final_gap_verify
+from review_agent.services.policy_coverage import apply_coverage_gate
 from review_agent.services.section_compare_llm import compare_all_sections
 from review_agent.services.playbook_context import build_playbook_hints_by_document
 from review_agent.services.section_coverage import ensure_section_coverage, reviewable_sections
@@ -51,6 +52,16 @@ async def section_compare_llm_node(
     }
     playbook_hints = _playbook_hints(state)
 
+    coverage_warnings: list[str] = []
+    ipc_items: list = []
+    if settings.policy_coverage_enabled:
+        hits_by_section, ipc_items, coverage_warnings = apply_coverage_gate(
+            sections,
+            hits_by_section,
+            categories_by_section,
+            settings=settings,
+        )
+
     sections_with_policy = [
         s
         for s in sections
@@ -82,6 +93,26 @@ async def section_compare_llm_node(
                 resolution_reason=str(payload.get("resolution_reason") or ""),
             )
 
+    if settings.section_cross_ref_enabled:
+        from review_agent.services.section_cross_reference import (
+            merge_category_siblings_into_bundle,
+            resolve_category_siblings,
+        )
+
+        for section in sections_with_policy:
+            siblings = resolve_category_siblings(
+                section,
+                sections,
+                categories_by_section,
+            )
+            if not siblings:
+                continue
+            related_by_section[section.section_id] = merge_category_siblings_into_bundle(
+                related_by_section.get(section.section_id),
+                siblings,
+                primary_section_id=section.section_id,
+            )
+
     items, compare_warnings, batch_stats = await compare_all_sections(
         sections_with_policy,
         hits_by_section,
@@ -92,6 +123,19 @@ async def section_compare_llm_node(
         categories_by_section=categories_by_section,
         related_by_section=related_by_section,
     )
+    incorporation_upgraded = 0
+    if settings.incorporation_guard_enabled:
+        from review_agent.services.incorporation_guard import apply_incorporation_guard
+
+        sections_by_id = {s.section_id: s for s in sections}
+        items, incorporation_upgraded = apply_incorporation_guard(items, sections_by_id)
+    if ipc_items:
+        items = list(ipc_items) + list(items)
+    compare_warnings = coverage_warnings + compare_warnings
+    if incorporation_upgraded:
+        compare_warnings.append(
+            f"incorporation guard upgraded {incorporation_upgraded} finding(s)"
+        )
 
     path_counts = {"dense": 0, "fts": 0, "metadata": 0}
     for bundle in bundles.values():
@@ -110,6 +154,8 @@ async def section_compare_llm_node(
         "sections_with_policy": len(sections_with_policy),
         "sections_no_policy": len(sections) - len(sections_with_policy),
         "compare_items": len(items),
+        "coverage_gate_ipc_count": len(ipc_items),
+        "incorporation_guard_upgraded": incorporation_upgraded,
         "retrieval_paths_used": path_counts,
         **batch_stats,
     }

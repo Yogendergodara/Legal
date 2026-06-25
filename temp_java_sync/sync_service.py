@@ -11,6 +11,7 @@ from typing import Any
 from document_core.schemas.chunk import DocumentKind, IngestRequest, IngestSectionInput, ListSectionsRequest
 from document_core.schemas.registry import RegisterContractRequest, RegisterPolicyRequest
 from document_core.schemas.taxonomy import normalize_categories
+from document_core.services.document_tag_priors import assess_policy_tag_quality
 from document_core.services.registry import stable_contract_document_id, stable_policy_document_id
 from review_agent.clients.document_client import DocumentMCPClient
 
@@ -194,12 +195,32 @@ async def _ingest_policy_structured(
     if record is not None:
         cats = normalize_categories((record.metadata or {}).get("categories"))
         tagger = str((record.metadata or {}).get("tagger") or tagger)
-    return _policy_result(
+    sections = await client.list_sections(
+        ListSectionsRequest(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            kind=DocumentKind.POLICY,
+        )
+    )
+    section_cats = [
+        normalize_categories((section.metadata or {}).get("categories"))
+        for section in sections
+    ]
+    tag_warnings = assess_policy_tag_quality(
+        document_title=policy_data["title"],
+        section_categories=section_cats,
+        tagger=tagger,
+        document_union=cats,
+    )
+    merged_warnings = list(result.warnings or []) + tag_warnings
+    policy_result = _policy_result(
         policy_ref=ref,
         document_id=str(document_id),
         ingest_result=result,
         categories=cats,
     ) | {"auto_tagged": True, "tagger": tagger, "title": policy_data["title"]}
+    policy_result["warnings"] = merged_warnings
+    return policy_result
 
 
 def sections_to_raw_text(sections: list[dict[str, Any]]) -> str:
@@ -257,6 +278,14 @@ async def sync_policies_only(
 
     primaries = [p.get("categories", [""])[0] for p in results if p.get("categories")]
     dupes = sorted({c for c in primaries if primaries.count(c) > 1})
+    weak_tag_policies = [
+        p.get("title") or p.get("policy_ref")
+        for p in results
+        if any(
+            "weak_tags" in w or "tagger=keyword" in w or w.startswith("unexpected_tags:")
+            for w in (p.get("warnings") or [])
+        )
+    ]
     return {
         "tenant_id": tenant_id,
         "policies": results,
@@ -265,6 +294,8 @@ async def sync_policies_only(
             "policies_synced": len(results),
             "tombstoned_count": len(tombstoned),
             "duplicate_primary_categories": dupes,
+            "weak_tag_count": len(weak_tag_policies),
+            "weak_tag_policies": weak_tag_policies,
         },
     }
 
@@ -514,6 +545,14 @@ def _build_sync_payload(
 ) -> dict[str, Any]:
     primaries = [p.get("categories", [""])[0] for p in policies if p.get("categories")]
     dupes = sorted({c for c in primaries if primaries.count(c) > 1})
+    weak_tag_policies = [
+        p.get("title") or p.get("policy_ref")
+        for p in policies
+        if any(
+            "weak_tags" in w or "tagger=keyword" in w or w.startswith("unexpected_tags:")
+            for w in (p.get("warnings") or [])
+        )
+    ]
     return {
         "tenant_id": tenant_id,
         "contract": contract,
@@ -529,6 +568,8 @@ def _build_sync_payload(
             "policies_synced": len(policies),
             "tombstoned_count": len(tombstoned),
             "duplicate_primary_categories": dupes,
+            "weak_tag_count": len(weak_tag_policies),
+            "weak_tag_policies": weak_tag_policies,
         },
     }
 

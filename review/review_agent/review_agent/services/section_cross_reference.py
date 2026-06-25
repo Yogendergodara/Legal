@@ -18,6 +18,9 @@ _SUBSTANTIVE_TITLE_HINT = re.compile(
     r"confidential|protection|indemn|liabil",
     re.IGNORECASE,
 )
+_SPECIFIC_CATEGORIES = frozenset(
+    {"confidentiality", "data_retention", "termination", "privacy", "security"}
+)
 
 
 @dataclass(frozen=True)
@@ -143,6 +146,89 @@ def format_compare_related_block(
     if len(lines) <= 2:
         return ""
     return "\n".join(lines)
+
+
+def resolve_category_siblings(
+    section: IndexedChunk,
+    all_sections: list[IndexedChunk],
+    categories_by_section: dict[str, list[str]],
+    *,
+    max_siblings: int = 2,
+    excerpt_chars: int = 1200,
+) -> list[tuple[str, str, str]]:
+    """Attach sibling excerpts when substantive categories overlap (Phase C2)."""
+    primary_cats = {
+        c.lower()
+        for c in categories_by_section.get(section.section_id, [])
+        if c.lower() in _SPECIFIC_CATEGORIES
+    }
+    if not primary_cats:
+        return []
+
+    candidates: list[tuple[str, IndexedChunk]] = []
+    for other in all_sections:
+        if other.section_id == section.section_id:
+            continue
+        other_cats = {
+            c.lower()
+            for c in categories_by_section.get(other.section_id, [])
+            if c.lower() in _SPECIFIC_CATEGORIES
+        }
+        if primary_cats & other_cats:
+            candidates.append((other.section_id, other))
+
+    def _sort_key(pair: tuple[str, IndexedChunk]) -> tuple[int, str]:
+        sid = pair[0]
+        try:
+            major = int(sid.split(".", 1)[0])
+        except ValueError:
+            major = 0
+        return (major, sid)
+
+    candidates.sort(key=_sort_key, reverse=True)
+
+    related: list[tuple[str, str, str]] = []
+    for sid, ref_section in candidates[:max_siblings]:
+        related.append(
+            (
+                sid,
+                (ref_section.title or sid).strip(),
+                _excerpt(ref_section.text or "", excerpt_chars),
+            )
+        )
+    return related
+
+
+def merge_category_siblings_into_bundle(
+    bundle: RelatedSectionBundle | None,
+    siblings: list[tuple[str, str, str]],
+    *,
+    primary_section_id: str,
+    max_related: int = 4,
+) -> RelatedSectionBundle | None:
+    if not siblings:
+        return bundle
+    if bundle is None:
+        return RelatedSectionBundle(
+            primary_section_id=primary_section_id,
+            related=siblings[:max_related],
+            resolution_reason="category_sibling",
+        )
+    seen = {sid for sid, _, _ in bundle.related}
+    merged = list(bundle.related)
+    for entry in siblings:
+        if entry[0] in seen:
+            continue
+        merged.append(entry)
+        seen.add(entry[0])
+    reason = bundle.resolution_reason or ""
+    if "category_sibling" not in reason:
+        reason = f"{reason},category_sibling" if reason else "category_sibling"
+    return RelatedSectionBundle(
+        primary_section_id=bundle.primary_section_id,
+        related=merged[:max_related],
+        resolution_reason=reason,
+    )
 
 
 def resolve_all_related_sections(

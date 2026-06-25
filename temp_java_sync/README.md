@@ -18,7 +18,13 @@ cd "d:\Ankit_legal\Legal\Legal ai\scripts"
 .\start_document_mcp.ps1 -Replace
 ```
 
-Optional **legal_ai_platform** on `:8080` for “Review via platform” button only.
+Optional **legal_ai_platform** on `:8080` for “Review via platform” button:
+
+```powershell
+cd "d:\Ankit_legal\Legal\Legal ai\scripts"
+.\start_legal_ai_platform.ps1 -Replace
+.\start_legal_ai_platform.ps1 -Status   # curl /agents
+```
 
 **Podman:** Postgres must be reachable at `127.0.0.1:5435` — start with `Legal ai\scripts\start_postgres_podman.ps1 -StartPodmanMachine` after `podman machine start`.
 
@@ -53,6 +59,65 @@ cd "d:\Ankit_legal\Legal\temp_java_sync"
 **Prerequisites:** document-mcp (+ Postgres); LLM key for review; optional platform `:8080` for platform review button.
 
 **Troubleshooting:** Dev UI `/api/health` → `document_mcp.db` must be `ok`.
+
+---
+
+## Standard demo flow (sync → review → assessment)
+
+Full operator path for Xecurify / miniOrange NDA testing. See also [Phase F plan](../review/plans/PHASE_F_DEVOPS_PLAN.md).
+
+1. **Start infra**
+
+   ```powershell
+   cd "d:\Ankit_legal\Legal\Legal ai\scripts"
+   .\start_postgres_podman.ps1
+   .\start_document_mcp.ps1 -Replace
+   ```
+
+2. **Configure LLM** — copy `.env.example` → `.env`, set `LLM_API_KEY`. If Mistral returns **429**, uncomment the **Mistral dev (429-safe)** block in `.env`.
+
+3. **Dev UI**
+
+   ```powershell
+   cd "d:\Ankit_legal\Legal\temp_java_sync"
+   .\run_dev_ui.ps1
+   ```
+
+   Open http://localhost:8090
+
+4. **Sync** — index Xecurify policies (Dev UI or `python test_xecurify_policies.py` sync-only is not split; use UI **Sync policies** or full smoke script). Confirm `outputs/sync_result.json` → `"tagger": "llm"` per policy when LLM key is set.
+
+5. **Review** — paste NDA → **Run review** (direct). Outputs:
+   - `review_result.json`
+   - `review_assessment.json` (latest)
+   - `xecurify_nda_assessment.json` (named snapshot when title contains “Xecurify”)
+
+6. **Platform (optional)** — `.\start_legal_ai_platform.ps1 -Replace` then **Review via platform**.
+
+7. **Regression smoke**
+
+   ```powershell
+   .\run_regression_smoke.ps1
+   ```
+
+   Runs Xecurify + Acme NDA harnesses against Dev UI on `:8090`.
+
+### Output artifacts
+
+| File | When |
+|------|------|
+| `sync_result.json` | After policy sync |
+| `review_result.json` | After every review |
+| `review_assessment.json` | Latest assessment (UI parity) |
+| `{slug}_assessment.json` | Named snapshot from contract title |
+| `xecurify_nda_assessment.json` | Xecurify baseline / regression |
+| `acme_nda_assessment.json` | Acme NDA regression |
+
+| Issue | Fix |
+|-------|-----|
+| Mistral 429 during review/sync | Mistral dev profile in `.env` (F1) |
+| Platform review 503 | `start_legal_ai_platform.ps1 -Replace` (F4) |
+| Stale `xecurify_nda_assessment.json` | Re-run review — auto-export updates named file (F2) |
 
 ---
 
@@ -153,8 +218,10 @@ python run_full_e2e.py
 
 Written to `outputs/` (gitignored):
 
-- `sync_result.json` — document IDs, section IDs
+- `sync_result.json` — document IDs, section IDs, tagger mode
 - `review_result.json` — findings, artifact, summary
+- `review_assessment.json` — latest UI-parity assessment export
+- `xecurify_nda_assessment.json` / `acme_nda_assessment.json` — named regression snapshots
 - `e2e_log.json` — step pass/fail log
 
 ---

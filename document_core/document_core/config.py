@@ -40,6 +40,7 @@ class DocumentCoreSettings(BaseSettings):
     category_tagger_model: str = "mistral-small-latest"
     category_tagger_batch_size: int = 8
     category_tagger_max_section_chars: int = 1200
+    category_tagger_max_tags_per_section: int = 3
     category_tagger_temperature: float = 0.0
     child_chunk_max_chars: int = 700
     child_chunk_overlap_sentences: int = 2

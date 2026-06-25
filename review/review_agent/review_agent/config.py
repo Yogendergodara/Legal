@@ -80,6 +80,15 @@ class ReviewSettings(BaseSettings):
     retrieval_category_filter_fallback: bool = True
     retrieval_skip_hard_filter_for_general: bool = True
     retrieval_max_hits_per_document: int = 3
+    named_policy_routing_enabled: bool = True
+    retrieval_relevance_gate_enabled: bool = True
+    retrieval_relevance_min_score: float = 0.2
+    policy_coverage_enabled: bool = True
+    policy_coverage_min_score: float = 0.34
+    incorporation_guard_enabled: bool = True
+    equivalence_guard_enabled: bool = True
+    finding_dedupe_topic_cluster: bool = True
+    retrieval_category_min_overlap: int = 0
     discovery_warn_on_cap: bool = True
     section_compare_batch_size: int = 2
     section_compare_max_findings_per_section: int = 4
@@ -89,7 +98,8 @@ class ReviewSettings(BaseSettings):
     section_retrieval_concurrency: int = 8
     section_compare_concurrency: int = 2
     compare_policy_hit_mode: Literal["all_top_k", "category_aligned", "primary_only"] = "category_aligned"
-    compare_max_policy_hits: int = 3
+    compare_max_policy_hits: int = 2
+    compare_hit_min_relevance_score: float = 0.35
     compare_batch_retry_single: bool = True
     compare_quote_anchor_enabled: bool = True
 
@@ -116,6 +126,7 @@ class ReviewSettings(BaseSettings):
     playbook_load_registry: bool = False
     grounding_downgrade_not_drop: bool = True
     grounding_rerun_coverage: bool = True
+    grounding_relax_compliant_empty_policy: bool = True
     conflict_emit_on_skip: bool = False
 
     artifact_include_hit_refs: bool = True

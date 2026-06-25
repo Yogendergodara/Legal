@@ -132,7 +132,37 @@ def parse_text_to_tree(
     )
 
 
+def _is_prose_list_line(line: str) -> bool:
+    """Numbered list prose (exclusions, bullets) — not a structural section heading."""
+    stripped = line.strip()
+    if not re.match(r"^\d+\.", stripped):
+        return False
+    if stripped.endswith(";"):
+        return True
+    if len(stripped) > 100:
+        return True
+    first_word = re.match(r"^\d+\.\s+(\w+)", stripped)
+    if first_word and first_word.group(1) in {
+        "Is",
+        "Are",
+        "Was",
+        "Were",
+        "Has",
+        "Have",
+        "Shall",
+        "Will",
+        "May",
+        "Must",
+        "Does",
+        "Do",
+    }:
+        return True
+    return False
+
+
 def _match_heading(line: str) -> tuple[str, str, int] | None:
+    if _is_prose_list_line(line):
+        return None
     if _HEADING_RE.match(line):
         section_id = _derive_section_id(line)
         level = _heading_level(section_id)
