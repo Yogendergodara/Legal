@@ -1,4 +1,4 @@
-"""Evidence sufficiency gating for obligation compare (Phase R5)."""
+"""Evidence sufficiency gating for obligation compare (Phase R5 / PR-01)."""
 
 from __future__ import annotations
 
@@ -59,24 +59,62 @@ def _max_hit_score(hits: list[RetrievalHit]) -> float:
     return max(hit.score for hit in hits)
 
 
+def _lexical_overlap_passes(concept_overlap: float, settings: ReviewSettings) -> bool:
+    if settings.evidence_min_concept_overlap <= 0:
+        return True
+    return concept_overlap >= settings.evidence_min_concept_overlap
+
+
+def _rerank_bypass_passes(
+    *,
+    max_score: float,
+    concept_overlap: float,
+    routing_confidence: float,
+    settings: ReviewSettings,
+) -> bool:
+    """PR-01 — cross-encoder score + marginal lexical overlap defers veto to compare LLM."""
+    if not settings.evidence_rerank_bypass_enabled:
+        return False
+    if max_score < settings.evidence_min_score:
+        return False
+    if routing_confidence < settings.evidence_rerank_bypass_min_confidence:
+        return False
+    half_floor = settings.evidence_min_concept_overlap * 0.5
+    if settings.evidence_min_concept_overlap <= 0:
+        return True
+    return concept_overlap >= half_floor
+
+
 def _hits_pass_gates(
     *,
     hit_count: int,
     max_score: float,
     concept_overlap: float,
     doc_coverage: float,
+    routing_confidence: float,
     settings: ReviewSettings,
 ) -> bool:
     if hit_count < settings.evidence_min_hits:
         return False
     if max_score < settings.evidence_min_score:
         return False
-    if settings.evidence_min_concept_overlap > 0 and concept_overlap < settings.evidence_min_concept_overlap:
-        if max_score < settings.evidence_min_score:
-            return False
     if settings.evidence_min_doc_coverage > 0 and doc_coverage < settings.evidence_min_doc_coverage:
         return False
-    return True
+    if _lexical_overlap_passes(concept_overlap, settings):
+        return True
+    return _rerank_bypass_passes(
+        max_score=max_score,
+        concept_overlap=concept_overlap,
+        routing_confidence=routing_confidence,
+        settings=settings,
+    )
+
+
+def _candidate_doc_ids(
+    match: CatalogMatchResult,
+    bundle: ObligationRetrievalBundle,
+) -> list[str]:
+    return list(bundle.candidate_doc_ids or match.candidate_doc_ids or [])
 
 
 def evaluate_evidence_sufficiency(
@@ -93,7 +131,7 @@ def evaluate_evidence_sufficiency(
     hit_count = len(hits)
     max_score = _max_hit_score(hits)
     overlap = concept_overlap_score(plan=plan, obligation=obligation, hits=hits)
-    coverage = candidate_doc_coverage(hits, bundle.candidate_doc_ids or match.candidate_doc_ids)
+    coverage = candidate_doc_coverage(hits, _candidate_doc_ids(match, bundle))
 
     base = EvidenceSufficiencyResult(
         obligation_id=obligation.obligation_id,
@@ -106,23 +144,49 @@ def evaluate_evidence_sufficiency(
         final_hits=hits,
     )
 
-    if match.route_decision == "ipc" or bundle.skipped_reason:
+    if bundle.skipped_reason:
+        reason = bundle.skipped_reason
+        if reason == "ipc_preflight":
+            reason = "routing_or_skip"
+        return base.model_copy(update={"decision": "ipc", "reason": reason})
+
+    if cfg.evidence_compare_on_catalog_candidates:
+        if match.route_decision == "ipc" and not match.candidate_doc_ids:
+            return base.model_copy(
+                update={"decision": "ipc", "reason": "routing_or_skip"},
+            )
+    elif match.route_decision == "ipc":
         return base.model_copy(
             update={"decision": "ipc", "reason": "routing_or_skip"},
         )
 
-    if plan.confidence < cfg.routing_ipc_max_confidence:
-        return base.model_copy(
-            update={"decision": "ipc", "reason": "low_routing_confidence"},
-        )
-
-    if _hits_pass_gates(
+    gates_pass = _hits_pass_gates(
         hit_count=hit_count,
         max_score=max_score,
         concept_overlap=overlap,
         doc_coverage=coverage,
+        routing_confidence=plan.confidence,
         settings=cfg,
-    ):
+    )
+
+    if plan.confidence < cfg.routing_ipc_max_confidence:
+        candidates = _candidate_doc_ids(match, bundle)
+        if gates_pass:
+            pass
+        elif (
+            candidates
+            and match.route_decision in ("expand", "compare")
+            and expand_round < cfg.evidence_expand_max_rounds
+        ):
+            return base.model_copy(
+                update={"decision": "expand", "reason": "insufficient_evidence"},
+            )
+        else:
+            return base.model_copy(
+                update={"decision": "ipc", "reason": "low_routing_confidence"},
+            )
+
+    if gates_pass:
         return base.model_copy(update={"decision": "compare", "reason": "evidence_sufficient"})
 
     if match.route_decision == "expand" and expand_round < cfg.evidence_expand_max_rounds:
@@ -133,6 +197,26 @@ def evaluate_evidence_sufficiency(
     reason = "insufficient_hits"
     if hit_count and max_score < cfg.evidence_min_score:
         reason = "low_relevance_score"
-    elif hit_count and overlap < cfg.evidence_min_concept_overlap:
+    elif hit_count and not _lexical_overlap_passes(overlap, cfg):
+        if _rerank_bypass_passes(
+            max_score=max_score,
+            concept_overlap=overlap,
+            routing_confidence=plan.confidence,
+            settings=cfg,
+        ):
+            return base.model_copy(
+                update={"decision": "compare", "reason": "evidence_sufficient"},
+            )
         reason = "low_concept_overlap"
     return base.model_copy(update={"decision": "ipc", "reason": reason})
+
+
+def tally_skip_reasons(
+    results: dict[str, EvidenceSufficiencyResult],
+) -> dict[str, int]:
+    """Count evidence decisions by reason for pipeline diagnostics (P0)."""
+    counts: dict[str, int] = {}
+    for result in results.values():
+        key = (result.reason or result.decision or "unknown").strip() or "unknown"
+        counts[key] = counts.get(key, 0) + 1
+    return counts

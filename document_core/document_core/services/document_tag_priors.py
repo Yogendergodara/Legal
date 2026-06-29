@@ -50,6 +50,21 @@ _DOCUMENT_PRIORS: tuple[DocumentTagPrior, ...] = (
         ("security", "access_control"),
         frozenset({"compliance", "general", "ip"}),
     ),
+    DocumentTagPrior(
+        ("data processing", "dpa"),
+        ("privacy", "cross_border_transfer"),
+        frozenset({"employment", "payment"}),
+    ),
+    DocumentTagPrior(
+        ("acceptable use", "aup"),
+        ("compliance", "security"),
+        frozenset({"sla", "payment"}),
+    ),
+    DocumentTagPrior(
+        ("ai terms", "artificial intelligence"),
+        ("ai_usage", "ip"),
+        frozenset({"employment", "hr"}),
+    ),
 )
 
 

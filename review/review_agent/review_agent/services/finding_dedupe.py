@@ -27,10 +27,31 @@ _DIMENSION_ALIASES: dict[str, frozenset[str]] = {
         {"code of conduct", "conduct acknowledgment", "conduct principles"}
     ),
     "security measures": frozenset(
-        {"security measures", "encryption", "access control", "mfa"}
+        {"security measures"}
     ),
     "data retention": frozenset(
         {"data retention", "retention period", "retention requirements"}
+    ),
+    "incorporation by reference": frozenset(
+        {"incorporation by reference", "adopted by reference", "incorporates by reference"}
+    ),
+    "human rights": frozenset(
+        {
+            "human rights",
+            "modern slavery",
+            "forced labor",
+            "environmental",
+        }
+    ),
+    "retention schedule": frozenset(
+        {
+            "retention period",
+            "retention periods",
+            "account and contact",
+            "transaction records",
+            "contractual documents",
+            "support and communication",
+        }
     ),
 }
 
@@ -176,7 +197,7 @@ def cap_compare_items_by_section(
     items: list[SectionCompareItem],
     max_per_section: int,
 ) -> tuple[list[SectionCompareItem], int, list[str]]:
-    """Cap compare items per section; never drop CRITICAL NON_COMPLIANT."""
+    """Cap compare items per section; never drop NON_COMPLIANT."""
     if max_per_section <= 0:
         return items, 0, []
 
@@ -191,17 +212,14 @@ def cap_compare_items_by_section(
     kept_work: list[SectionCompareItem] = []
 
     for section_id, group in by_section.items():
-        critical_nc = [
-            item
-            for item in group
-            if item.status == ComplianceStatus.NON_COMPLIANT
-            and item.severity == Severity.CRITICAL
+        protected_nc = [
+            item for item in group if item.status == ComplianceStatus.NON_COMPLIANT
         ]
-        remainder = [item for item in group if item not in critical_nc]
+        remainder = [item for item in group if item.status != ComplianceStatus.NON_COMPLIANT]
         remainder.sort(key=_cap_sort_key, reverse=True)
 
-        target = max(max_per_section, len(critical_nc))
-        kept = list(critical_nc)
+        target = max(max_per_section, len(protected_nc))
+        kept = list(protected_nc)
         for item in remainder:
             if len(kept) >= target:
                 break
@@ -247,8 +265,15 @@ def suppress_contradicted_non_compliant(
         if not compliant:
             continue
         for item in group:
-            if item.status == ComplianceStatus.NON_COMPLIANT:
-                drop_ids.add(id(item))
+            if item.status != ComplianceStatus.NON_COMPLIANT:
+                continue
+            for comp in compliant:
+                if item.section_id == comp.section_id or _quotes_overlap(
+                    item.contract_quote,
+                    comp.contract_quote,
+                ):
+                    drop_ids.add(id(item))
+                    break
 
     if not drop_ids:
         return items, 0

@@ -153,6 +153,112 @@ async def test_governing_law_no_ir():
     assert ir_id not in match.candidate_doc_ids
 
 
+@pytest.mark.asyncio
+async def test_catalog_match_weak_score_expands_when_candidates_exist():
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = [
+        CatalogSearchHit(document_id=doc_id, title="Privacy Policy", score=0.18),
+    ]
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        search_queries=["privacy data collection"],
+        confidence=0.9,
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[_entry(doc_id, "Privacy Policy")],
+        allowed_doc_ids={doc_id},
+        settings=ReviewSettings(catalog_match_min_score=0.25),
+    )
+    assert doc_id in match.candidate_doc_ids
+    assert match.route_decision == "expand"
+
+
+@pytest.mark.asyncio
+async def test_catalog_marginal_score_routes_to_compare():
+    """PR-05 — fenced score between 0.85×min and min uses compare."""
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = [
+        CatalogSearchHit(document_id=doc_id, title="Privacy Policy", score=0.22),
+    ]
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        search_queries=["privacy data collection"],
+        confidence=0.9,
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[_entry(doc_id, "Privacy Policy")],
+        allowed_doc_ids={doc_id},
+        settings=ReviewSettings(catalog_match_min_score=0.25),
+    )
+    assert doc_id in match.candidate_doc_ids
+    assert match.route_decision == "compare"
+
+
+@pytest.mark.asyncio
+async def test_catalog_low_confidence_with_explicit_mentions_searches():
+    """PR-06 — explicit policy mentions bypass planner IPC preflight."""
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = [
+        CatalogSearchHit(document_id=doc_id, title="Privacy Policy", score=0.9),
+    ]
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        search_queries=["privacy"],
+        confidence=0.2,
+        explicit_policy_mentions=["Privacy Policy"],
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[_entry(doc_id, "Privacy Policy")],
+        allowed_doc_ids={doc_id},
+        settings=ReviewSettings(),
+    )
+    client.search_policy_catalog.assert_called()
+    assert doc_id in match.candidate_doc_ids
+    assert match.route_decision == "compare"
+
+
+@pytest.mark.asyncio
+async def test_catalog_title_fallback_when_search_empty():
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = []
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        intent="data processing",
+        search_queries=["vendor obligations"],
+        confidence=0.9,
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[_entry(doc_id, "Atlassian Privacy Policy")],
+        allowed_doc_ids={doc_id},
+        settings=ReviewSettings(catalog_match_obligation_fallback_enabled=True),
+        obligation_text="Customer personal data must follow the Atlassian Privacy Policy.",
+        section_title="Privacy",
+    )
+    assert doc_id in match.candidate_doc_ids
+    assert match.route_decision in ("expand", "compare")
+    assert client.search_policy_catalog.await_count >= 1
+
+
 def test_routing_golden_fixture_ipc_cases():
     cases = json.loads(_FIXTURE_PATH.read_text(encoding="utf-8"))
     ipc_cases = [c for c in cases if c.get("expected_route_decision") == "ipc"]

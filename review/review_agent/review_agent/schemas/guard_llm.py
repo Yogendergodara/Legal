@@ -30,3 +30,12 @@ class BatchRationaleGuardLLMResult(BaseModel):
 
 class RationaleRepairResult(BaseModel):
     rationale: str = Field(..., min_length=5)
+
+
+class RationaleRepairBatchItem(BaseModel):
+    finding_id: str
+    rationale: str = Field(..., min_length=5)
+
+
+class BatchRationaleRepairLLMResult(BaseModel):
+    items: list[RationaleRepairBatchItem] = Field(default_factory=list)

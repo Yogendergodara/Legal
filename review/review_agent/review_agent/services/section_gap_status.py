@@ -30,6 +30,13 @@ _BOILERPLATE_TITLE = re.compile(
     re.IGNORECASE,
 )
 
+_BOILERPLATE_BODY = re.compile(
+    r"(?i)^(this agreement constitutes the entire agreement|"
+    r"if any provision.*(invalid|unenforceable)|"
+    r"this agreement may be executed in counterparts|"
+    r"no waiver.*shall be effective)",
+)
+
 
 def normalize_section_title(title: str) -> str:
     """Strip leading section numbers (e.g. '10.5 Notices' -> 'Notices')."""
@@ -40,6 +47,9 @@ def normalize_section_title(title: str) -> str:
 
 def is_boilerplate_section(section: IndexedChunk) -> bool:
     """Title-level boilerplate (parties, purpose, definitions, notices, counterparts)."""
+    body_head = (section.text or "")[:240]
+    if _BOILERPLATE_BODY.search(body_head):
+        return True
     raw = (section.title or section.section_id or "").strip()
     if not raw:
         return False

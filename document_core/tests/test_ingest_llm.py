@@ -51,3 +51,16 @@ async def test_invoke_structured_json_retries_429(monkeypatch: pytest.MonkeyPatc
 
     assert result.ok is True
     assert post.await_count == 2
+
+
+def test_ingest_llm_prefers_sync_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SYNC_LLM_API_KEY", "sync-key")
+    monkeypatch.setenv("LLM_API_KEY", "shared-key")
+    assert ingest_llm._api_key() == "sync-key"
+
+
+def test_ingest_llm_api_key_available_with_sync_key_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.setenv("SYNC_LLM_API_KEY", "sync-only")
+    assert ingest_llm.llm_api_key_available() is True

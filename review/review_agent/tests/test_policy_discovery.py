@@ -454,6 +454,68 @@ def test_select_grouped_with_category_reserve_prefers_sla():
     assert reserved >= 1
 
 
+def test_category_reserve_capped_leaves_fill_slots():
+    from review_agent.schemas.discovered_policy import DiscoveredPolicy
+
+    categories = [f"cat{i}" for i in range(8)]
+    ranked = [
+        DiscoveredPolicy(
+            document_id=f"doc-{category}",
+            match_score=0.9 - index * 0.01,
+            policy_group=f"group-{category}",
+            categories=[category],
+        )
+        for index, category in enumerate(categories)
+    ]
+    ranked.append(
+        DiscoveredPolicy(
+            document_id="topic-only",
+            match_score=0.99,
+            policy_group="topic-search",
+            categories=["topic_only"],
+        )
+    )
+    grouped, _deduped, _groups_before, reserved = policy_discovery._select_grouped_with_category_reserve(
+        ranked,
+        categories,
+        max_groups=6,
+        max_policies=0,
+    )
+    doc_ids = {policy.document_id for policy in grouped}
+    assert "topic-only" in doc_ids
+    assert reserved <= 3
+
+
+def test_group_and_cap_vendor_complete_skips_dedup():
+    from review_agent.config import ReviewSettings
+    from review_agent.schemas.discovered_policy import DiscoveredPolicy
+
+    ranked = [
+        DiscoveredPolicy(
+            document_id="a",
+            match_score=0.9,
+            policy_group="shared",
+            categories=["privacy"],
+        ),
+        DiscoveredPolicy(
+            document_id="b",
+            match_score=0.8,
+            policy_group="shared",
+            categories=["privacy"],
+        ),
+    ]
+    settings = ReviewSettings(discovery_vendor_complete_threshold=10)
+    grouped, deduped, groups_before, _reserved = policy_discovery._group_and_cap(
+        ranked,
+        settings=settings,
+        group_cap=6,
+        section_categories=["privacy"],
+    )
+    assert deduped == 0
+    assert len(grouped) == 2
+    assert groups_before == 2
+
+
 @pytest.mark.asyncio
 async def test_discovery_respects_scope_document_ids():
     from uuid import uuid4

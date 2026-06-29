@@ -11,7 +11,7 @@ from document_core.schemas.chunk import IndexedChunk
 from document_core.schemas.taxonomy import normalize_categories, taxonomy_prompt_labels
 from review_agent.config import ReviewSettings, get_settings
 from review_agent.errors import FatalPipelineError, LLMUnavailableError
-from review_agent.models.llm_gateway import get_review_model, invoke_structured
+from review_agent.models.llm_gateway import get_review_model, invoke_structured, _is_rate_limit_error
 from review_agent.schemas.section_classify import (
     BatchSectionCategoryLLMResult,
     SectionCategoryResult,
@@ -27,6 +27,7 @@ from review_agent.services.section_cross_reference import (
     resolve_all_related_sections,
 )
 from review_agent.services.section_gap_status import is_non_substantive_section
+from review_agent.resilience.failure_policy import note_batch_llm_failure, should_batch_single_retry
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,8 @@ def _lexical_classify_result(
     """Return full result if LLM can be skipped; None if LLM required."""
     if settings.section_classify_mode != "lexical_first":
         return None
+    if is_non_substantive_section(section):
+        return None
     lex = _lexical_with_context(section, context_text, settings=settings)
     if lex.confidence not in ("title", "body") or not lex.categories:
         return None
@@ -282,22 +285,47 @@ async def _salvage_classify_batch(
     system_tpl: str,
     batch_user: str,
 ) -> BatchSectionCategoryLLMResult:
-    from langchain_core.messages import HumanMessage, SystemMessage
-
-    from review_agent.models.llm_gateway import _extract_json_payload
-
+    _ = contract_type
     model = get_review_model(
         temperature=settings.compliance_llm_temperature,
         max_tokens=1024 if len(sections) > 1 else 512,
     )
-    response = await model.ainvoke(
-        [SystemMessage(content=system_tpl), HumanMessage(content=batch_user)]
+    result = await invoke_structured(
+        model,
+        BatchSectionCategoryLLMResult,
+        system=system_tpl,
+        user=batch_user,
     )
-    content = getattr(response, "content", "")
-    if not isinstance(content, str):
-        raise ValueError("LLM returned non-text content")
-    payload = _extract_json_payload(content)
-    return _normalize_classify_payload(payload, sections)
+    if result.items:
+        return result
+    return _normalize_classify_payload({"items": []}, sections)
+
+
+def _rate_limited_classify_results(
+    sections: list[IndexedChunk],
+    *,
+    settings: ReviewSettings,
+    context_by_id: dict[str, str],
+    bundles_by_id: dict[str, RelatedSectionBundle],
+) -> dict[str, SectionCategoryResult]:
+    return {
+        section.section_id: (
+            _lexical_classify_result(
+                section,
+                settings=settings,
+                context_text=context_by_id.get(section.section_id, ""),
+                bundle=bundles_by_id.get(section.section_id),
+            )
+            or _fallback_result(
+                section,
+                reason="rate_limited",
+                settings=settings,
+                context_text=context_by_id.get(section.section_id, ""),
+                bundle=bundles_by_id.get(section.section_id),
+            )
+        )
+        for section in sections
+    }
 
 
 async def _classify_batch_llm(
@@ -362,6 +390,13 @@ async def _classify_batch_llm(
         }
     except Exception as exc:  # noqa: BLE001
         logger.warning("batch section classify structured failed: %s", exc)
+        if _is_rate_limit_error(exc):
+            return _rate_limited_classify_results(
+                sections,
+                settings=settings,
+                context_by_id=context_by_id,
+                bundles_by_id=bundles_by_id,
+            )
         try:
             result = await _salvage_classify_batch(
                 sections,
@@ -374,7 +409,31 @@ async def _classify_batch_llm(
             raise
         except Exception as salvage_exc:  # noqa: BLE001
             logger.warning("batch section classify salvage failed: %s", salvage_exc)
+            if _is_rate_limit_error(salvage_exc):
+                return _rate_limited_classify_results(
+                    sections,
+                    settings=settings,
+                    context_by_id=context_by_id,
+                    bundles_by_id=bundles_by_id,
+                )
+            note_batch_llm_failure()
             if not settings.section_classify_batch_retry_single or len(sections) == 1:
+                return {
+                    section.section_id: _fallback_result(
+                        section,
+                        reason=str(salvage_exc) or str(exc) or "batch classify failed",
+                        settings=settings,
+                        context_text=context_by_id.get(section.section_id, ""),
+                        bundle=bundles_by_id.get(section.section_id),
+                    )
+                    for section in sections
+                }
+            if not should_batch_single_retry(
+                salvage_exc,
+                batch_len=len(sections),
+                batch_retry_enabled=True,
+                posture_enabled=settings.llm_review_posture_enabled,
+            ):
                 return {
                     section.section_id: _fallback_result(
                         section,
@@ -528,7 +587,7 @@ async def classify_all_sections(
     *,
     contract_type: str | None = None,
     settings: ReviewSettings | None = None,
-) -> dict[str, SectionCategoryResult]:
+) -> tuple[dict[str, SectionCategoryResult], dict[str, int]]:
     cfg = settings or get_settings()
     related_bundles = (
         resolve_all_related_sections(sections, settings=cfg)
@@ -571,4 +630,18 @@ async def classify_all_sections(
             continue
         merged.update(result)
 
-    return merged
+    classify_stats = {
+        "classify_lexical_skipped": 0,
+        "classify_llm_sections": 0,
+        "classify_boilerplate_skipped": 0,
+    }
+    for result in merged.values():
+        warning = result.classify_warning or ""
+        if warning == "boilerplate_skip" or not result.substantive:
+            classify_stats["classify_boilerplate_skipped"] += 1
+        elif warning.startswith("lexical_first="):
+            classify_stats["classify_lexical_skipped"] += 1
+        else:
+            classify_stats["classify_llm_sections"] += 1
+
+    return merged, classify_stats

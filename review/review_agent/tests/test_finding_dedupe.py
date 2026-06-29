@@ -142,6 +142,24 @@ def test_suppress_contradicted_non_compliant_across_sections() -> None:
         contract_quote="Hold all Confidential Information in strict confidence",
     )
     kept, removed = suppress_contradicted_non_compliant([compliant, conflict])
+    assert removed == 0
+    assert len(kept) == 2
+
+
+def test_suppress_same_section_topic_cluster_still_drops_nc() -> None:
+    compliant = _item(
+        section_id="3.2",
+        dimension_label="Secure Deletion",
+        status=ComplianceStatus.COMPLIANT,
+        contract_quote="Securely delete all Confidential Information",
+    )
+    conflict = _item(
+        section_id="3.2",
+        dimension_label="Secure Deletion Requirements",
+        status=ComplianceStatus.NON_COMPLIANT,
+        contract_quote="Hold all Confidential Information in strict confidence",
+    )
+    kept, removed = suppress_contradicted_non_compliant([compliant, conflict])
     assert removed == 1
     assert len(kept) == 1
     assert kept[0].status == ComplianceStatus.COMPLIANT
@@ -166,6 +184,39 @@ def test_suppress_contradicted_with_mismatched_dimension_labels() -> None:
         contract_quote="Hold all Confidential Information in strict confidence",
     )
     kept, removed = suppress_contradicted_non_compliant([compliant, conflict])
+    assert removed == 0
+    assert len(kept) == 2
+
+
+def test_distinct_dimension_labels_not_clustered() -> None:
+    from review_agent.services.finding_dedupe import dimension_topic_key
+
+    assert dimension_topic_key("Incorporation by Reference") == "incorporation by reference"
+    assert dimension_topic_key("General Incorporation Clause") != "incorporation by reference"
+    assert dimension_topic_key("Encryption Standards") != dimension_topic_key(
+        "Security Measures Policy"
+    )
+    assert dimension_topic_key("Human Rights in Supply Chain") == "human rights"
+
+
+def test_dedupe_retention_schedule_aliases() -> None:
+    quote = "Account and contact information: duration of the relationship plus three (3) years"
+    left = _item(
+        section_id="3.1",
+        dimension_label="Retention Periods for Account & Contact Info",
+        status=ComplianceStatus.COMPLIANT,
+        contract_quote=quote,
+        policy_quote="Account & contact info | Lifetime of customer relationship + 3 years",
+        rationale="Retention period aligns with policy schedule.",
+    )
+    right = _item(
+        section_id="3.1",
+        dimension_label="Account and Contact Information Retention",
+        status=ComplianceStatus.COMPLIANT,
+        contract_quote=quote,
+        policy_quote="Account & contact info | Lifetime of customer relationship + 3 years",
+        rationale="Exact retention alignment confirmed.",
+    )
+    deduped, removed = dedupe_compare_items([left, right], across_policies=True)
     assert removed == 1
-    assert len(kept) == 1
-    assert kept[0].section_id == "3.2"
+    assert len(deduped) == 1

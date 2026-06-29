@@ -29,6 +29,7 @@ from document_core.schemas.chunk import (
     SearchRequest,
 )
 from document_core.schemas.policy_catalog import CatalogSearchHit, CatalogSearchRequest
+from document_core.schemas.policy_sync import SyncPoliciesRequest, SyncPoliciesResponse
 from document_core.schemas.registry import (
     DeletePolicyRequest,
     DeletePolicyResult,
@@ -41,6 +42,7 @@ from document_core.schemas.registry import (
 )
 from document_core.services.grounding import verify_quote
 from document_core.services.ingest import ingest_document
+from document_core.services.policy_sync import sync_policies
 from document_core.services.registry_async import (
     delete_policy_async,
     get_contract_by_ref_async,
@@ -187,6 +189,15 @@ async def index_policy_tool(request: IngestRequest) -> IngestResult:
     payload = request.model_copy(update={"kind": DocumentKind.POLICY})
     try:
         return await ingest_document(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/tools/sync_policies", response_model=SyncPoliciesResponse)
+async def sync_policies_tool(request: SyncPoliciesRequest) -> SyncPoliciesResponse:
+    """Batch ingest playbooks from Java (register + chunk + index)."""
+    try:
+        return await sync_policies(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -38,3 +38,6 @@ class BatchObligationExtractResult(BaseModel):
 class ObligationExtractResult(BaseModel):
     obligations: list[ContractObligation] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    extract_batch_failures: int = 0
+    extract_single_retries: int = 0
+    extract_single_recovered: int = 0

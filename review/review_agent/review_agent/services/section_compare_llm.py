@@ -13,10 +13,21 @@ from review_agent.models.llm_gateway import get_review_model, invoke_structured
 from review_agent.schemas.compliance_llm import ComplianceLLMResult
 from review_agent.schemas.section_compare import BatchSectionCompareLLMResult, SectionCompareItem
 from review_agent.services.async_limits import gather_limited
+from review_agent.services.compare_failure_status import classify_compare_failure
+from review_agent.resilience.failure_policy import (
+    get_current_review_posture,
+    note_batch_llm_failure,
+    should_batch_single_retry,
+)
 from review_agent.services.compare_hit_selection import filter_hits_for_compare
 from review_agent.services.playbook_context import PlaybookHints, format_playbook_hint_block, hints_from_chunk_metadata
 from review_agent.services.quote_validate import truncate_section, validate_and_normalize_quotes
-from review_agent.services.token_budget import split_batch_by_token_budget
+from review_agent.services.token_budget import (
+    compare_batch_split_stats,
+    effective_compare_max_tokens,
+    max_batch_estimated_tokens,
+    split_batch_by_token_budget,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +115,11 @@ def _hit_categories(hit: RetrievalHit) -> list[str]:
     return []
 
 
+def _playbook_compare_cap(cfg: ReviewSettings) -> int | None:
+    cap = cfg.playbook_compare_max_chars
+    return cap if cap > 0 else None
+
+
 def _format_sections_block(
     sections: list[IndexedChunk],
     hits_by_section: dict[str, list[RetrievalHit]],
@@ -112,11 +128,14 @@ def _format_sections_block(
     playbook_hints_by_document: dict[str, PlaybookHints] | None = None,
     enrich_playbook: bool = True,
     categories_by_section: dict[str, list[str]] | None = None,
+    extra_context_by_section: dict[str, str] | None = None,
+    playbook_compare_max_chars: int | None = None,
 ) -> tuple[str, list[str]]:
     blocks: list[str] = []
     truncated_ids: list[str] = []
     hints_map = playbook_hints_by_document or {}
     cats_map = categories_by_section or {}
+    ctx_map = extra_context_by_section or {}
     for section in sections:
         body = section.text or ""
         if len(body.strip()) > max_section_chars:
@@ -125,6 +144,9 @@ def _format_sections_block(
         section_cats = cats_map.get(section.section_id)
         if section_cats:
             blocks.append(f"- **Section categories:** {', '.join(section_cats)}")
+        section_extra = (ctx_map.get(section.section_id) or "").strip()
+        if section_extra:
+            blocks.append(section_extra)
         blocks.append(f"```\n{truncate_section(body, max_section_chars)}\n```")
         policy_hits = hits_by_section.get(section.section_id) or []
         if not policy_hits:
@@ -148,24 +170,59 @@ def _format_sections_block(
                 hints = hints_map.get(str(parent.document_id))
                 if hints is None:
                     hints = hints_from_chunk_metadata(parent.metadata)
-                hint_block = format_playbook_hint_block(hints)
+                hint_block = format_playbook_hint_block(
+                    hints,
+                    compare_max_chars=playbook_compare_max_chars,
+                )
             if hint_block:
                 blocks.append(hint_block)
             blocks.append(f"```\n{truncate_section(ptext, max_section_chars)}\n```")
     return "\n\n".join(blocks), truncated_ids
 
 
-def _failure_items(sections: list[IndexedChunk], *, reason: str) -> list[SectionCompareItem]:
+def _failure_items(
+    sections: list[IndexedChunk],
+    *,
+    reason: str,
+    hits_by_section: dict[str, list[RetrievalHit]] | None = None,
+    transient_inconclusive: bool = True,
+    obligation_section_cutover_mode: str = "skip",
+    llm_review_posture: str | None = None,
+) -> list[SectionCompareItem]:
+    hits_map = hits_by_section or {}
+    posture = llm_review_posture or get_current_review_posture().value
     return [
         SectionCompareItem(
             section_id=section.section_id,
             dimension_label=section.title or section.section_id,
-            status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+            status=classify_compare_failure(
+                reason,
+                has_policy_evidence=bool(hits_map.get(section.section_id)),
+                transient_inconclusive=transient_inconclusive,
+                obligation_section_cutover_mode=obligation_section_cutover_mode,
+                llm_review_posture=posture,
+            ),
             severity=Severity.INFO,
             rationale=f"Section compare failed: {reason}"[:2000],
         )
         for section in sections
     ]
+
+
+def _selection_empty_ipc_item(section: IndexedChunk, hit_count: int) -> SectionCompareItem:
+    return SectionCompareItem(
+        section_id=section.section_id,
+        dimension_label=section.title or section.section_id,
+        status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+        severity=Severity.INFO,
+        contract_quote="",
+        policy_quote="",
+        rationale=(
+            "Policy hits were retrieved but none passed compare hit selection "
+            f"(category_aligned, hits={hit_count}). Compare skipped to avoid false gaps."
+        ),
+        confidence=0.85,
+    )
 
 
 def _normalize_item_quotes(
@@ -175,6 +232,7 @@ def _normalize_item_quotes(
     policy_text: str,
     quote_stats: dict[str, int] | None = None,
     anchor_enabled: bool = True,
+    preserve_non_compliant_on_quote_fail: bool = False,
 ) -> SectionCompareItem:
     adapted = ComplianceLLMResult(
         status=item.status,
@@ -190,6 +248,7 @@ def _normalize_item_quotes(
         policy_text=policy_text,
         quote_stats=quote_stats,
         anchor_enabled=anchor_enabled,
+        preserve_non_compliant_on_quote_fail=preserve_non_compliant_on_quote_fail,
     )
     return item.model_copy(
         update={
@@ -210,6 +269,7 @@ def _postprocess_compare_items(
     *,
     quote_stats: dict[str, int] | None = None,
     anchor_enabled: bool = True,
+    preserve_non_compliant_on_quote_fail: bool = False,
     warnings: list[str] | None = None,
 ) -> list[SectionCompareItem]:
     section_text_by_id = {s.section_id: s.text or "" for s in sections}
@@ -238,6 +298,7 @@ def _postprocess_compare_items(
                 policy_text=policy_text,
                 quote_stats=quote_stats,
                 anchor_enabled=anchor_enabled,
+                preserve_non_compliant_on_quote_fail=preserve_non_compliant_on_quote_fail,
             )
         if not item.dimension_label:
             item = item.model_copy(update={"dimension_label": item.section_id})
@@ -252,11 +313,13 @@ async def _invoke_compare_batch(
     contract_type: str | None,
     memory_context: str,
     extra_user_context: str,
+    extra_context_by_section: dict[str, str] | None = None,
     cfg: ReviewSettings,
     playbook_hints_by_document: dict[str, PlaybookHints] | None,
     categories_by_section: dict[str, list[str]] | None = None,
 ) -> BatchSectionCompareLLMResult:
     max_chars = cfg.section_compare_max_section_chars
+    playbook_cap = _playbook_compare_cap(cfg)
     system_tpl, user_tpl = _load_prompt_template()
     sections_block, _truncated_ids = _format_sections_block(
         sections,
@@ -265,6 +328,8 @@ async def _invoke_compare_batch(
         playbook_hints_by_document=playbook_hints_by_document,
         enrich_playbook=cfg.playbook_enrich_compare,
         categories_by_section=categories_by_section,
+        extra_context_by_section=extra_context_by_section,
+        playbook_compare_max_chars=playbook_cap,
     )
 
     memory_block = ""
@@ -296,6 +361,7 @@ async def compare_section_batch(
     contract_type: str | None = None,
     memory_context: str = "",
     extra_user_context: str = "",
+    extra_context_by_section: dict[str, str] | None = None,
     settings: ReviewSettings | None = None,
     playbook_hints_by_document: dict[str, PlaybookHints] | None = None,
     quote_stats: dict[str, int] | None = None,
@@ -324,6 +390,7 @@ async def compare_section_batch(
 
     warnings: list[str] = []
     max_chars = cfg.section_compare_max_section_chars
+    playbook_cap = _playbook_compare_cap(cfg)
     _, truncated_ids = _format_sections_block(
         sections,
         hits_by_section,
@@ -331,6 +398,8 @@ async def compare_section_batch(
         playbook_hints_by_document=playbook_hints_by_document,
         enrich_playbook=cfg.playbook_enrich_compare,
         categories_by_section=categories_by_section,
+        extra_context_by_section=extra_context_by_section,
+        playbook_compare_max_chars=playbook_cap,
     )
     if truncated_ids:
         unique = sorted(set(truncated_ids))
@@ -345,6 +414,7 @@ async def compare_section_batch(
             contract_type=contract_type,
             memory_context=memory_context,
             extra_user_context=related_context,
+            extra_context_by_section=extra_context_by_section,
             cfg=cfg,
             playbook_hints_by_document=playbook_hints_by_document,
             categories_by_section=categories_by_section,
@@ -353,21 +423,45 @@ async def compare_section_batch(
         raise
     except LLMUnavailableError as exc:
         logger.warning("section compare LLM unavailable: %s", exc)
-        return _failure_items(sections, reason=str(exc)), warnings
+        return (
+            _failure_items(
+                sections,
+                reason=str(exc),
+                hits_by_section=hits_by_section,
+                transient_inconclusive=cfg.compare_failure_transient_inconclusive,
+                obligation_section_cutover_mode=cfg.obligation_section_cutover_mode,
+            ),
+            warnings,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.warning("section compare LLM failed: %s", exc)
-        if cfg.compare_batch_retry_single and len(sections) > 1:
+        note_batch_llm_failure()
+        if should_batch_single_retry(
+            exc,
+            batch_len=len(sections),
+            batch_retry_enabled=cfg.compare_batch_retry_single,
+            posture_enabled=cfg.llm_review_posture_enabled,
+            stage="section_compare",
+        ):
             retry_items: list[SectionCompareItem] = []
             for section in sections:
                 sid = section.section_id
                 single_hits = {sid: hits_by_section.get(sid, [])}
+                single_ctx = related_context
+                if extra_context_by_section and sid in extra_context_by_section:
+                    single_ctx = extra_context_by_section[sid]
                 try:
                     single_result = await _invoke_compare_batch(
                         [section],
                         single_hits,
                         contract_type=contract_type,
                         memory_context=memory_context,
-                        extra_user_context=related_context,
+                        extra_user_context=single_ctx,
+                        extra_context_by_section=(
+                            {sid: extra_context_by_section[sid]}
+                            if extra_context_by_section and sid in extra_context_by_section
+                            else None
+                        ),
                         cfg=cfg,
                         playbook_hints_by_document=playbook_hints_by_document,
                         categories_by_section=categories_by_section,
@@ -382,7 +476,13 @@ async def compare_section_batch(
                         single_exc,
                     )
                     retry_items.extend(
-                        _failure_items([section], reason=str(single_exc))
+                        _failure_items(
+                            [section],
+                            reason=str(single_exc),
+                            hits_by_section=single_hits,
+                            transient_inconclusive=cfg.compare_failure_transient_inconclusive,
+                            obligation_section_cutover_mode=cfg.obligation_section_cutover_mode,
+                        )
                     )
             normalized = _postprocess_compare_items(
                 retry_items,
@@ -390,10 +490,22 @@ async def compare_section_batch(
                 hits_by_section,
                 quote_stats=quote_stats,
                 anchor_enabled=cfg.compare_quote_anchor_enabled,
+                preserve_non_compliant_on_quote_fail=(
+                    cfg.grounding_downgrade_mode == "keep_status_flag"
+                ),
                 warnings=warnings,
             )
             return normalized, warnings
-        return _failure_items(sections, reason=str(exc)), warnings
+        return (
+            _failure_items(
+                sections,
+                reason=str(exc),
+                hits_by_section=hits_by_section,
+                transient_inconclusive=cfg.compare_failure_transient_inconclusive,
+                obligation_section_cutover_mode=cfg.obligation_section_cutover_mode,
+            ),
+            warnings,
+        )
 
     normalized = _postprocess_compare_items(
         result.items,
@@ -401,6 +513,9 @@ async def compare_section_batch(
         hits_by_section,
         quote_stats=quote_stats,
         anchor_enabled=cfg.compare_quote_anchor_enabled,
+        preserve_non_compliant_on_quote_fail=(
+            cfg.grounding_downgrade_mode == "keep_status_flag"
+        ),
         warnings=warnings,
     )
     return normalized, warnings
@@ -417,6 +532,8 @@ async def compare_all_sections(
     categories_by_section: dict[str, list[str]] | None = None,
     related_by_section: dict | None = None,
     doc_catalog_categories: dict[str, list[str]] | None = None,
+    retrieval_gate_applied_by_section: dict[str, bool] | None = None,
+    allowed_document_ids: set[str] | None = None,
 ) -> tuple[list[SectionCompareItem], list[str], dict[str, int | float | str]]:
     cfg = settings or get_settings()
     hits_by_section = {s.section_id: bundles.get(s.section_id, []) for s in sections}
@@ -427,14 +544,44 @@ async def compare_all_sections(
         section_titles_by_id=titles_by_section,
         settings=cfg,
         doc_catalog_categories=doc_catalog_categories,
+        retrieval_gate_applied_by_section=retrieval_gate_applied_by_section,
+        allowed_document_ids=allowed_document_ids,
     )
 
+    selection_ipc: list[SectionCompareItem] = []
+    compare_sections: list[IndexedChunk] = []
+    for section in sections:
+        sid = section.section_id
+        raw = hits_by_section.get(sid) or []
+        selected = filtered_hits.get(sid) or []
+        if raw and not selected:
+            selection_ipc.append(_selection_empty_ipc_item(section, len(raw)))
+            continue
+        if selected:
+            compare_sections.append(section)
+
     quote_stats: dict[str, int] = {}
+    max_tokens = effective_compare_max_tokens(cfg.section_compare_max_tokens, cfg)
     batches = split_batch_by_token_budget(
-        sections,
+        compare_sections,
         batch_size=cfg.section_compare_batch_size,
-        max_tokens=cfg.section_compare_max_tokens,
+        max_tokens=max_tokens,
         bundles=filtered_hits,
+        settings=cfg,
+        playbook_hints_by_document=playbook_hints_by_document,
+        categories_by_section=categories_by_section,
+    )
+    split_stats = compare_batch_split_stats(
+        len(compare_sections),
+        batches,
+        cfg.section_compare_batch_size,
+    )
+    est_max = max_batch_estimated_tokens(
+        batches,
+        filtered_hits,
+        settings=cfg,
+        playbook_hints_by_document=playbook_hints_by_document,
+        categories_by_section=categories_by_section,
     )
 
     async def run_batch(batch: list[IndexedChunk]):
@@ -459,21 +606,41 @@ async def compare_all_sections(
     all_items: list[SectionCompareItem] = []
     all_warnings: list[str] = []
     failed_batches = 0
+    transient_failures = 0
     for batch, result in zip(batches, results, strict=True):
         if isinstance(result, BaseException):
             failed_batches += 1
             logger.warning("compare batch failed: %s", result)
-            all_items.extend(_failure_items(batch, reason=str(result)))
+            batch_hits = {s.section_id: filtered_hits.get(s.section_id, []) for s in batch}
+            failure_items = _failure_items(
+                batch,
+                reason=str(result),
+                hits_by_section=batch_hits,
+                transient_inconclusive=cfg.compare_failure_transient_inconclusive,
+                obligation_section_cutover_mode=cfg.obligation_section_cutover_mode,
+            )
+            transient_failures += sum(
+                1 for item in failure_items if item.status == ComplianceStatus.INCONCLUSIVE
+            )
+            all_items.extend(failure_items)
             continue
         items, warnings = result
         all_items.extend(items)
         all_warnings.extend(warnings)
+
+    all_items = selection_ipc + all_items
 
     stats: dict[str, int | float | str] = {
         "llm_batches_actual": len(batches),
         "llm_batches_failed": failed_batches,
         "sections_truncated": len({w for w in all_warnings if "truncated" in w}),
         "compare_quote_anchored": quote_stats.get("compare_quote_anchored", 0),
+        "compare_selection_empty_ipc_count": len(selection_ipc),
         "compare_hit_selection": hit_selection_stats,
+        "compare_transient_failure_count": transient_failures,
+        **split_stats,
+        "compare_est_tokens_max_batch": est_max,
+        "compare_token_pack_mode": cfg.compare_token_pack_mode,
+        "compare_token_budget_mode": cfg.compare_token_budget_mode,
     }
     return all_items, all_warnings, stats

@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock
 
 import pytest
+from uuid import uuid4
 
 from review_agent.config import ReviewSettings
 from review_agent.graph.routing_nodes import semantic_route_node
@@ -12,7 +13,8 @@ from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.routing_plan import BatchRoutingPlanResult, PlannerRoutingItem
 from review_agent.services.catalog_alias_match import match_explicit_mentions
 from review_agent.services.catalog_registry import CatalogEntry
-from review_agent.services.semantic_routing_planner import plan_obligation_routing
+from review_agent.services.catalog_matcher import match_obligation_to_catalog
+from review_agent.services.semantic_routing_planner import _fallback_plan, plan_obligation_routing
 
 
 def _entry(
@@ -158,3 +160,40 @@ async def test_graph_node_flag_off(monkeypatch):
     )
     out = await semantic_route_node(state, client=AsyncMock())
     assert out == {}
+
+
+def test_fallback_plan_above_ipc_threshold():
+    ob = ContractObligation(obligation_id="1-o0", section_id="1", text="Payment terms apply.")
+    plan = _fallback_plan(ob, settings=ReviewSettings(routing_ipc_max_confidence=0.60))
+    assert plan.confidence >= 0.60
+    assert plan.routing_source == "planner_fallback"
+
+
+@pytest.mark.asyncio
+async def test_planner_cap_uses_fallback_with_catalog_path():
+    from document_core.schemas.policy_catalog import CatalogSearchHit
+
+    ob = ContractObligation(
+        obligation_id="1-o0",
+        section_id="1",
+        text="Payment terms apply within 30 days.",
+    )
+    settings = ReviewSettings(routing_ipc_max_confidence=0.60)
+    plan = _fallback_plan(ob, settings=settings)
+    assert plan.routing_source == "planner_fallback"
+
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = [
+        CatalogSearchHit(document_id=doc_id, score=0.9, title="Payment Policy"),
+    ]
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="t1",
+        catalog_entries=[_entry(doc_id, "Payment Policy")],
+        allowed_doc_ids={doc_id},
+        settings=settings,
+        obligation_text=ob.text or "",
+    )
+    assert match.route_decision != "ipc"

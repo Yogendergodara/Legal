@@ -119,6 +119,63 @@ async def test_retry_succeeds_after_rate_limit(monkeypatch: pytest.MonkeyPatch):
 
 
 @pytest.mark.asyncio
+async def test_hot_posture_single_attempt_on_429(monkeypatch: pytest.MonkeyPatch):
+    from review_agent.config import get_settings
+
+    async def _noop_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(llm_gateway.asyncio, "sleep", _noop_sleep)
+    monkeypatch.setenv("LLM_REVIEW_POSTURE_ENABLED", "true")
+
+    llm_gateway.reset_llm_limiter()
+    get_settings.cache_clear()
+    limiter = llm_gateway._get_limiter()
+    limiter.rate_limit_events = 3
+
+    rate_exc = RuntimeError("HTTP 429 rate limit exceeded")
+    model = _FakeModel(structured_failures=[rate_exc, rate_exc, rate_exc, rate_exc])
+
+    with pytest.raises(RuntimeError, match="429"):
+        await llm_gateway.invoke_structured(
+            model,  # type: ignore[arg-type]
+            _DummyResult,
+            system="s",
+            user="u",
+        )
+    assert model.structured_calls == 1
+    assert llm_gateway.get_llm_limiter_stats()["rate_limit_events"] == 4
+
+
+@pytest.mark.asyncio
+async def test_quota_429_does_not_trip_breaker(monkeypatch: pytest.MonkeyPatch):
+    from review_agent.config import get_settings
+    from review_agent.resilience.circuit_breaker import get_llm_breaker, reset_all_breakers
+
+    async def _noop_sleep(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(llm_gateway.asyncio, "sleep", _noop_sleep)
+    reset_all_breakers()
+    llm_gateway.reset_llm_limiter()
+    get_settings.cache_clear()
+
+    rate_exc = RuntimeError("HTTP 429 rate limit exceeded")
+    model = _FakeModel(structured_failures=[rate_exc] * 100)
+
+    for _ in range(20):
+        with pytest.raises(RuntimeError, match="429"):
+            await llm_gateway.invoke_structured(
+                model,  # type: ignore[arg-type]
+                _DummyResult,
+                system="s",
+                user="u",
+            )
+
+    assert get_llm_breaker().state == get_llm_breaker().CLOSED
+
+
+@pytest.mark.asyncio
 async def test_retry_exhausted_raises(monkeypatch: pytest.MonkeyPatch):
     async def _noop_sleep(_seconds: float) -> None:
         return None
@@ -135,8 +192,9 @@ async def test_retry_exhausted_raises(monkeypatch: pytest.MonkeyPatch):
             system="s",
             user="u",
         )
-    assert model.structured_calls == 4
-    assert llm_gateway.get_llm_limiter_stats()["rate_limit_events"] == 4
+    # Dynamic posture (B-RC-F7): HOT after 3 events caps quota retries to 1 attempt
+    assert model.structured_calls == 3
+    assert llm_gateway.get_llm_limiter_stats()["rate_limit_events"] == 3
 
 
 @pytest.mark.asyncio

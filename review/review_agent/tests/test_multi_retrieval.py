@@ -78,6 +78,17 @@ def test_query_for_attempt_broadens_on_retry():
     assert "general" in cats2
 
 
+def test_query_for_attempt_meaning_first_uses_section_body():
+    section = _section()
+    classification = _classification(section)
+    settings = ReviewSettings(retrieval_meaning_first_enabled=True)
+    q0, _, _ = _query_for_attempt(classification, section, 0, settings=settings)
+    assert "Limitation of Liability" in q0
+    assert "Total liability" in q0
+    q1, _, _ = _query_for_attempt(classification, section, 1, settings=settings)
+    assert q1 == "Limitation of Liability"
+
+
 @pytest.mark.asyncio
 async def test_multi_retrieve_merges_three_paths():
     section = _section()
@@ -296,3 +307,91 @@ def test_diverse_top_k_caps_per_document():
     other_count = sum(1 for h in result if str(h.parent_chunk.document_id) == str(other_doc))
     assert other_count == 1
     assert len(result) == 4
+
+
+@pytest.mark.asyncio
+async def test_scope_fallback_when_category_index_empty():
+    section = _section()
+    scope_id = str(uuid4())
+    hit = _hit("payment terms policy", "pay1", 0.85)
+    classification = SectionCategoryResult(
+        section_id=section.section_id,
+        categories=["payment"],
+        query_terms=["payment terms and invoicing"],
+    )
+
+    class FakeClient:
+        async def list_policy_ids_by_categories(self, *_args, **_kwargs):
+            return []
+
+        async def search_policy_recall(self, req):
+            assert req.document_ids is not None
+            assert str(req.document_ids[0]) == scope_id
+            return [hit]
+
+        async def search_policy_fts(self, _req):
+            return []
+
+        async def search_policy_by_categories(self, _req, *, categories):
+            return []
+
+    settings = ReviewSettings(
+        retrieval_max_attempts=1,
+        retrieval_scope_fallback_on_category_miss=True,
+    )
+    bundle = await multi_retrieve_for_section(
+        FakeClient(),
+        tenant_id="demo",
+        section=section,
+        contract_type="saas",
+        policy_type=None,
+        settings=settings,
+        classification=classification,
+        scope_document_ids=[scope_id],
+    )
+    assert len(bundle.policy_hits) == 1
+    assert (
+        bundle.retrieval_meta.get("category_filter_skipped")
+        == "scope_fallback_on_category_miss"
+    )
+
+
+@pytest.mark.asyncio
+async def test_category_miss_continues_retry_ladder_without_scope():
+    section = _section()
+    hit = _hit("found on broad retry", "broad1", 0.82)
+    recall_calls: list[str] = []
+
+    class FakeClient:
+        async def list_policy_ids_by_categories(self, *_args, **_kwargs):
+            return []
+
+        async def search_policy_recall(self, req):
+            recall_calls.append(req.query)
+            return [hit] if recall_calls else []
+
+        async def search_policy_fts(self, _req):
+            return []
+
+        async def search_policy_by_categories(self, _req, *, categories):
+            return []
+
+    settings = ReviewSettings(
+        retrieval_max_attempts=3,
+        retrieval_scope_fallback_on_category_miss=False,
+        mcp_search_cache_enabled=False,
+    )
+    bundle = await multi_retrieve_for_section(
+        FakeClient(),
+        tenant_id="demo",
+        section=section,
+        contract_type="msa",
+        policy_type=None,
+        settings=settings,
+        classification=_classification(section),
+        scope_document_ids=None,
+    )
+    assert len(bundle.policy_hits) == 1
+    assert bundle.retrieval_meta.get("category_filter_miss") is True
+    assert len(bundle.retrieval_meta["attempts"]) >= 3
+    assert len(recall_calls) == 1

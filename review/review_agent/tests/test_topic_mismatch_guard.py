@@ -152,3 +152,38 @@ def test_liability_gap_unchanged_when_categories_align() -> None:
     )
     assert count == 0
     assert result[0].status == ComplianceStatus.NON_COMPLIANT
+
+
+def test_governing_law_incident_downgraded_via_catalog_when_chunk_untagged() -> None:
+    section = _contract_section(
+        "10.1",
+        "Governing Law",
+        "This Agreement shall be governed by the laws of Wyoming.",
+    )
+    hit = _policy_hit(
+        doc_id=IR_DOC,
+        section_id="10",
+        title="Incident Response Plan",
+        categories=[],
+    )
+    item = SectionCompareItem(
+        section_id="10.1",
+        policy_document_id=str(IR_DOC),
+        policy_section_id="10",
+        dimension_label="Incident Reporting Requirement",
+        status=ComplianceStatus.NON_COMPLIANT,
+        severity=Severity.IMPORTANT,
+        contract_quote="governed by the laws of Wyoming",
+        policy_quote="ISMS Team prepares incident report",
+        rationale="Contract does not address incident reporting requirements.",
+    )
+    catalog = {str(IR_DOC): ["incident_reporting", "records_management"]}
+    result, count = apply_topic_mismatch_guard(
+        [item],
+        sections_by_id={"10.1": section},
+        categories_by_section={"10.1": ["governing_law"]},
+        hits_by_section={"10.1": [hit]},
+        doc_catalog_categories=catalog,
+    )
+    assert count == 1
+    assert result[0].status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT

@@ -18,13 +18,24 @@ T = TypeVar("T", bound=BaseModel)
 
 
 def llm_api_key_available() -> bool:
-    return bool(os.environ.get("LLM_API_KEY") or os.environ.get("MISTRAL_API_KEY"))
+    return bool(
+        os.environ.get("SYNC_LLM_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or os.environ.get("MISTRAL_API_KEY")
+    )
 
 
 def _api_key() -> str:
-    key = os.environ.get("LLM_API_KEY") or os.environ.get("MISTRAL_API_KEY") or ""
+    key = (
+        os.environ.get("SYNC_LLM_API_KEY")
+        or os.environ.get("LLM_API_KEY")
+        or os.environ.get("MISTRAL_API_KEY")
+        or ""
+    )
     if not key:
-        raise RuntimeError("LLM_API_KEY or MISTRAL_API_KEY is required for category tagger LLM mode")
+        raise RuntimeError(
+            "SYNC_LLM_API_KEY, LLM_API_KEY, or MISTRAL_API_KEY is required for ingest LLM mode"
+        )
     return key
 
 
@@ -50,11 +61,14 @@ async def invoke_structured_json(
     user: str,
     schema: type[T],
     temperature: float = 0.0,
+    timeout_seconds: float = 60.0,
+    max_tokens: int = 2048,
 ) -> T:
     """Call chat completions and parse JSON into a Pydantic model."""
     payload = {
         "model": model,
         "temperature": temperature,
+        "max_tokens": max_tokens,
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
@@ -67,7 +81,7 @@ async def invoke_structured_json(
 
     for attempt in range(max_attempts):
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
                 response = await client.post(
                     f"{_base_url()}/chat/completions",
                     headers={"Authorization": f"Bearer {_api_key()}"},

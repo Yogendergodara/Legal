@@ -148,9 +148,17 @@ async def test_grounding_node_uses_repair_before_verify(monkeypatch):
             guard_pass_enabled=False,
         ),
     )
+    async def _fake_repair_batch(jobs, *, settings=None, stats=None):
+        from review_agent.schemas.quote_repair import QuoteRepairResult
+
+        return {
+            job.repair_id: QuoteRepairResult(repaired_quote="$100,000", repair_notes="fixed")
+            for job in jobs
+        }
+
     monkeypatch.setattr(
-        "review_agent.services.grounding_quote.repair_quote_for_section",
-        _fake_repair,
+        "review_agent.services.grounding_quote.repair_quotes_batch",
+        _fake_repair_batch,
     )
 
     client = MagicMock()
@@ -192,9 +200,9 @@ async def test_no_repair_when_already_grounded(monkeypatch):
             guard_pass_enabled=False,
         ),
     )
-    repair_mock = AsyncMock()
+    repair_mock = AsyncMock(return_value={})
     monkeypatch.setattr(
-        "review_agent.services.grounding_quote.repair_quote_for_section",
+        "review_agent.services.grounding_quote.repair_quotes_batch",
         repair_mock,
     )
 
@@ -240,21 +248,27 @@ async def test_downgrade_when_repair_and_verify_fail(monkeypatch):
         text="Some unrelated section text here.",
     )
 
-    async def _fake_repair(**kwargs):
-        return QuoteRepairResult(repaired_quote="", repair_notes="no match")
+    async def _fake_repair_batch(jobs, *, settings=None, stats=None):
+        from review_agent.schemas.quote_repair import QuoteRepairResult
+
+        return {
+            job.repair_id: QuoteRepairResult(repaired_quote="", repair_notes="no match")
+            for job in jobs
+        }
 
     monkeypatch.setattr(
         "review_agent.graph.nodes.get_settings",
         lambda: ReviewSettings(
             grounding_downgrade_not_drop=True,
+            grounding_downgrade_mode="inconclusive",
             grounding_rerun_coverage=False,
             quote_repair_enabled=True,
             guard_pass_enabled=False,
         ),
     )
     monkeypatch.setattr(
-        "review_agent.services.grounding_quote.repair_quote_for_section",
-        _fake_repair,
+        "review_agent.services.grounding_quote.repair_quotes_batch",
+        _fake_repair_batch,
     )
 
     client = MagicMock()

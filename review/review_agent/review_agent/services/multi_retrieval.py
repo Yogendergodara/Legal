@@ -16,6 +16,11 @@ from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import ReviewSettings, get_settings
 from review_agent.schemas.section_classify import SectionCategoryResult
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
+from review_agent.services.mcp_search_cache import (
+    get_cached_hits,
+    make_search_cache_key,
+    set_cached_hits,
+)
 from review_agent.services.named_policy_routing import (
     extract_named_policy_title_keys,
     resolve_named_policy_doc_ids,
@@ -25,7 +30,7 @@ from review_agent.services.policy_coverage import (
     filter_doc_ids_by_category_overlap,
 )
 from review_agent.services.policy_coverage import catalog_doc_categories
-from review_agent.services.retrieval_relevance import filter_hits_by_relevance
+from review_agent.services.retrieval_relevance import filter_hits_by_relevance, relevance_filter_kwargs
 from review_agent.services.section_classifier import classify_section_policies
 
 logger = logging.getLogger(__name__)
@@ -102,17 +107,30 @@ def _specific_categories_for_overlap(categories: list[str]) -> set[str]:
     return _specific_categories(categories)
 
 
+def _section_meaning_query(section: IndexedChunk, cfg: ReviewSettings) -> str:
+    """SR-01: dense/FTS query from section title + body (not first classify term only)."""
+    title = (section.title or section.section_id or "").strip()
+    body = (section.text or "").strip()
+    cap = max(200, cfg.retrieval_section_query_max_chars)
+    combined = f"{title}\n{body}" if title and body else (title or body)
+    return combined[:cap].strip()
+
+
 def _query_for_attempt(
     classification: SectionCategoryResult,
     section: IndexedChunk,
     attempt: int,
     *,
     contract_routing: dict[str, Any] | None = None,
+    settings: ReviewSettings | None = None,
 ) -> tuple[str, list[str], bool]:
+    cfg = settings or get_settings()
     terms = classification.query_terms or []
     title = (section.title or section.section_id or "").strip()
 
     if attempt == 0:
+        if cfg.retrieval_meaning_first_enabled:
+            return _section_meaning_query(section, cfg), list(classification.categories), True
         query = terms[0] if terms else title
         if _is_general_only(classification.categories) and contract_routing:
             topics = contract_routing.get("topics") or []
@@ -174,6 +192,12 @@ async def _resolve_filter_document_ids(
             if scope_set:
                 return [UUID(doc_id) for doc_id in scope_set], filter_meta
             return None, filter_meta
+        if scope_set and (
+            cfg.retrieval_category_filter_fallback
+            or cfg.retrieval_scope_fallback_on_category_miss
+        ):
+            filter_meta["category_filter_skipped"] = "scope_fallback_on_category_miss"
+            return [UUID(doc_id) for doc_id in scope_set], filter_meta
         filter_meta["skipped_reason"] = "no_indexed_playbook_for_categories"
         return [], filter_meta
 
@@ -247,13 +271,34 @@ async def retrieve_hybrid_attempt(
         "filter_document_count": len(filter_doc_ids or []),
     }
 
+    async def _cached_fetch(
+        endpoint: str,
+        categories_for_key: list[str],
+        fetch,
+    ) -> list[RetrievalHit]:
+        if not cfg.mcp_search_cache_enabled:
+            return await fetch()
+        key = make_search_cache_key(endpoint, base, categories=categories_for_key)
+        cached = get_cached_hits(key)
+        if cached is not None:
+            return cached
+        hits = await fetch()
+        set_cached_hits(key, hits)
+        return hits
+
     async def dense_path() -> list[RetrievalHit]:
-        hits = await client.search_policy_recall(base)
+        async def _fetch() -> list[RetrievalHit]:
+            return await client.search_policy_recall(base)
+
+        hits = await _cached_fetch("recall", [], _fetch)
         step["dense_count"] = len(hits)
         return hits
 
     async def fts_path() -> list[RetrievalHit]:
-        hits = await client.search_policy_fts(base)
+        async def _fetch() -> list[RetrievalHit]:
+            return await client.search_policy_fts(base)
+
+        hits = await _cached_fetch("fts", [], _fetch)
         step["fts_count"] = len(hits)
         return hits
 
@@ -262,7 +307,11 @@ async def retrieve_hybrid_attempt(
             step["metadata_count"] = 0
             step["parent_category_hits"] = 0
             return []
-        hits = await client.search_policy_by_categories(base, categories=categories)
+
+        async def _fetch() -> list[RetrievalHit]:
+            return await client.search_policy_by_categories(base, categories=categories)
+
+        hits = await _cached_fetch("categories", categories, _fetch)
         step["metadata_count"] = len(hits)
         step["parent_category_hits"] = count_parent_category_hits(hits, categories)
         return hits
@@ -338,8 +387,11 @@ async def multi_retrieve_for_section(
             section,
             attempt_index,
             contract_routing=contract_routing,
+            settings=cfg,
         )
         use_category_filter = wants_category_filter and cfg.retrieval_category_hard_filter
+        if cfg.retrieval_meaning_first_enabled:
+            use_category_filter = False
         if cfg.retrieval_skip_hard_filter_for_general and _is_general_only(
             classification.categories
         ):
@@ -401,7 +453,7 @@ async def multi_retrieve_for_section(
             attempts_meta.append(step)
             winning_step = step
             if resolve_meta.get("skipped_reason") == "no_indexed_playbook_for_categories":
-                break
+                filter_meta["category_filter_miss"] = True
             continue
 
         hits, step = await retrieve_hybrid_attempt(
@@ -422,20 +474,29 @@ async def multi_retrieve_for_section(
         if step["final_count"] > 0:
             break
 
+    final_attempt = int(winning_step.get("attempt", 0) or 0)
     relevance_dropped = 0
     if hits and cfg.retrieval_relevance_gate_enabled:
-        relevance_floor = max(
-            cfg.retrieval_relevance_min_score,
-            cfg.compare_hit_min_relevance_score,
-        )
         catalog_cats = catalog_doc_categories(policy_catalog or [])
+        if cfg.retrieval_coverage_filter_aligned:
+            kw = relevance_filter_kwargs(cfg, stage="retrieval")
+        else:
+            kw = {
+                "min_score": max(
+                    cfg.retrieval_relevance_min_score,
+                    cfg.compare_hit_min_relevance_score,
+                ),
+                "keep_best_fallback": cfg.retrieval_relevance_keep_best_fallback,
+                "require_specific_overlap": False,
+            }
+        if cfg.retrieval_meaning_first_enabled and final_attempt >= 1:
+            kw = {**kw, "require_specific_overlap": False}
         relevant, dropped = filter_hits_by_relevance(
             hits,
             section_categories=classification.categories,
             section_title=section.title or section.section_id,
-            min_score=relevance_floor,
-            keep_best_fallback=cfg.retrieval_relevance_keep_best_fallback,
             doc_catalog_categories=catalog_cats or None,
+            **kw,
         )
         if relevant:
             relevance_dropped = len(dropped)
@@ -446,13 +507,18 @@ async def multi_retrieve_for_section(
         "query_terms": classification.query_terms,
         **filter_meta,
         "attempts": attempts_meta,
-        "final_attempt": winning_step.get("attempt", 0),
+        "final_attempt": final_attempt,
+        "meaning_first_enabled": cfg.retrieval_meaning_first_enabled,
         "final_count": len(hits),
         "dense_count": winning_step.get("dense_count", 0),
         "fts_count": winning_step.get("fts_count", 0),
         "metadata_count": winning_step.get("metadata_count", 0),
         "union_count": winning_step.get("union_count", 0),
     }
+    if hits and cfg.retrieval_relevance_gate_enabled and cfg.retrieval_coverage_filter_aligned:
+        paths["relevance_gate_applied"] = True
+        kw = relevance_filter_kwargs(cfg, stage="retrieval")
+        paths["relevance_gate_overlap"] = kw["require_specific_overlap"]
     if relevance_dropped:
         paths["relevance_dropped"] = relevance_dropped
     if winning_step.get("reranker_used"):

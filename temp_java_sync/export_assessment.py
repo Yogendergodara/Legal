@@ -27,6 +27,9 @@ STATUS_RANK = {
     "INCONCLUSIVE": 2,
     "COMPLIANT": 3,
 }
+_ASSESSMENT_COMPARE_SOURCES = frozenset(
+    {"playbook_compare", "section_first_final", "obligation_compare"}
+)
 SEVERITY_RANK = {"critical": 3, "important": 2, "info": 1}
 SCORE_POINTS = {
     "COMPLIANT": 100,
@@ -102,12 +105,24 @@ def section_results(primary: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_section: dict[str, dict[str, Any]] = {}
     for finding in primary:
         sid = str(finding.get("contract_section_id") or "").strip() or "?"
+        source = str((finding.get("metadata") or {}).get("source") or "")
         current = by_section.get(sid)
-        if current is None or _status_rank(finding.get("status")) < _status_rank(current.get("status")):
+        if current is None:
             by_section[sid] = _slim_finding(finding)
-        elif _status_rank(finding.get("status")) == _status_rank(current.get("status")):
+            continue
+        current_source = str((current.get("source") or ""))
+        finding_rank = _status_rank(finding.get("status"))
+        current_rank = _status_rank(current.get("status"))
+        prefer_finding = False
+        if finding_rank < current_rank:
+            prefer_finding = True
+        elif finding_rank == current_rank:
             if _severity_rank(finding.get("severity")) > _severity_rank(current.get("severity")):
-                by_section[sid] = _slim_finding(finding)
+                prefer_finding = True
+            elif source in _ASSESSMENT_COMPARE_SOURCES and current_source not in _ASSESSMENT_COMPARE_SOURCES:
+                prefer_finding = True
+        if prefer_finding:
+            by_section[sid] = _slim_finding(finding)
     return [by_section[k] for k in sorted(by_section.keys(), key=lambda x: (len(x), x))]
 
 
@@ -182,6 +197,18 @@ def build_assessment(
     artifact = review.get("artifact") or {}
     ops = artifact.get("ops") or {}
     metadata = (review.get("artifacts") or {}).get("report", {}).get("metadata") or {}
+    engine_diagnosis = (
+        review.get("engine_diagnosis")
+        or metadata.get("engine_diagnosis")
+        or artifact.get("engine_diagnosis")
+        or {}
+    )
+    baseline_interp = engine_diagnosis.get("baseline_interpretation") or {}
+    funnel_story = baseline_interp.get("funnel_story") or ""
+    speed_anomaly = None
+    if "review_wall_time_suspicious" in (baseline_interp.get("health_flags") or []):
+        speed_anomaly = "wall_time_fast_vs_baseline_nc_low"
+    ipc_interp = baseline_interp.get("ipc_interpretation") or {}
 
     policies_indexed = len((sync or {}).get("policies") or [])
     if not policies_indexed:
@@ -219,7 +246,11 @@ def build_assessment(
         ],
         "discovered_policy_document_ids": review.get("discovered_policy_document_ids") or [],
         "pipeline": review.get("pipeline"),
+        "diagnostics": engine_diagnosis,
         "ops": ops,
+        "baseline_funnel_story": funnel_story,
+        "speed_anomaly": speed_anomaly,
+        "ipc_interpretation_status": ipc_interp.get("status"),
         "warnings_sample": list(review.get("warnings") or [])[:20],
         "accuracy_notes": {
             "compare_field": "section_results[].status",

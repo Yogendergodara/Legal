@@ -15,8 +15,12 @@ def test_validate_requires_contract_document_id():
 
 
 def test_validate_requires_policy_document_ids():
-    with pytest.raises(ValueError, match="policy_document_ids is required"):
-        validate_review_inputs(contract_document_id=str(uuid4()), policy_document_ids=[])
+    with pytest.raises(ValueError, match="policy_document_ids"):
+        validate_review_inputs(
+            contract_document_id=str(uuid4()),
+            policy_document_ids=[],
+            policy_scope="request",
+        )
 
 
 def test_validate_rejects_invalid_uuid():
@@ -29,11 +33,12 @@ def test_validate_rejects_invalid_uuid():
 
 def test_validate_accepts_ids():
     doc_id = str(uuid4())
-    parsed, warnings = validate_review_inputs(
+    parsed, policy_ids, warnings = validate_review_inputs(
         contract_document_id=doc_id,
         policy_document_ids=["policy-a"],
     )
     assert parsed == doc_id
+    assert policy_ids == ["policy-a"]
     assert warnings == []
 
 

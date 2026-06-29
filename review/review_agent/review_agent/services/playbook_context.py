@@ -113,7 +113,17 @@ def hints_from_chunk_metadata(metadata: dict[str, Any] | None) -> PlaybookHints 
     return hints if hints.has_content() else None
 
 
-def format_playbook_hint_block(hints: PlaybookHints | None) -> str:
+def _trim_compare_text(text: str, compare_max_chars: int | None) -> str:
+    if not compare_max_chars or compare_max_chars <= 0 or len(text) <= compare_max_chars:
+        return text
+    return text[:compare_max_chars] + "\n[truncated]"
+
+
+def format_playbook_hint_block(
+    hints: PlaybookHints | None,
+    *,
+    compare_max_chars: int | None = None,
+) -> str:
     if hints is None or not hints.has_content():
         return ""
     lines: list[str] = ["  **Playbook hints:**"]
@@ -126,10 +136,12 @@ def format_playbook_hint_block(hints: PlaybookHints | None) -> str:
     if hints.review_guidance:
         lines.append(f"  - guidance: {hints.review_guidance}")
     if hints.preferred_position:
-        lines.append(f"  - preferred_position:\n```\n{hints.preferred_position}\n```")
+        pos = _trim_compare_text(hints.preferred_position, compare_max_chars)
+        lines.append(f"  - preferred_position:\n```\n{pos}\n```")
     for idx, fallback in enumerate(hints.fallback_positions, start=1):
         label = fallback.get("label") or f"fallback_{idx}"
         text = (fallback.get("text") or "").strip()
         if text:
+            text = _trim_compare_text(text, compare_max_chars)
             lines.append(f"  - fallback ({label}):\n```\n{text}\n```")
     return "\n".join(lines)

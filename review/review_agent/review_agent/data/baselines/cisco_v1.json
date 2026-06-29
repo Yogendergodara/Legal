@@ -1,0 +1,14 @@
+{
+  "baseline_id": "cisco_v1",
+  "contract": "Acme Hardware Supply Agreement",
+  "min_violations": 4,
+  "max_wall_speed_ratio": 0.35,
+  "metrics": {
+    "legal_score_10": 6.7,
+    "compare_items": 10,
+    "llm_batches": 3,
+    "violations_nc": 4,
+    "review_wall_ms": 120000,
+    "llm_rate_limit_events": 3
+  }
+}

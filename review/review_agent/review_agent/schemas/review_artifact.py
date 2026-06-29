@@ -107,5 +107,6 @@ class ReviewArtifact(BaseModel):
     final_verify_stats: dict[str, Any] = Field(default_factory=dict)
     section_coverage: dict[str, Any] = Field(default_factory=dict)
     compliance_stats: dict[str, Any] = Field(default_factory=dict)
+    engine_diagnosis: dict[str, Any] = Field(default_factory=dict)
     degraded_sections: list[dict[str, Any]] = Field(default_factory=list)
     ops: ReviewArtifactOps = Field(default_factory=ReviewArtifactOps)

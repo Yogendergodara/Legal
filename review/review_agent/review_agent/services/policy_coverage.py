@@ -11,7 +11,8 @@ from review_agent.schemas.section_compare import SectionCompareItem
 from review_agent.services.retrieval_relevance import (
     coverage_block_reason,
     filter_on_topic_hits,
-    score_hit_relevance,
+    is_incompatible_hit,
+    relevance_filter_kwargs,
 )
 
 
@@ -29,6 +30,54 @@ def _relevance_floor(cfg: ReviewSettings) -> float:
     return max(cfg.retrieval_relevance_min_score, cfg.compare_hit_min_relevance_score)
 
 
+def _strip_incompatible_hits(
+    hits: list[RetrievalHit],
+    *,
+    section_categories: list[str],
+    section_title: str,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
+) -> tuple[list[RetrievalHit], list[RetrievalHit], str]:
+    """Remove incompatible-family hits; return block reason when none remain."""
+    if not hits:
+        return [], [], "no_relevant_policy_hits"
+    compatible: list[RetrievalHit] = []
+    incompatible: list[RetrievalHit] = []
+    for hit in hits:
+        if is_incompatible_hit(
+            section_categories,
+            section_title,
+            hit,
+            doc_catalog_categories=doc_catalog_categories,
+        ):
+            incompatible.append(hit)
+        else:
+            compatible.append(hit)
+    if compatible:
+        return compatible, incompatible, ""
+    reason = coverage_block_reason(
+        section_categories,
+        section_title,
+        hits,
+        doc_catalog_categories=doc_catalog_categories,
+    )
+    return [], list(hits), reason
+
+
+def _mixed_policy_insufficient(
+    hits: list[RetrievalHit],
+    relevant_hits: list[RetrievalHit],
+    cfg: ReviewSettings,
+) -> bool:
+    if not hits or not relevant_hits:
+        return False
+    score = len(relevant_hits) / max(len(hits), 1)
+    if score >= cfg.policy_coverage_min_score:
+        return False
+    doc_ids = {str(h.parent_chunk.document_id) for h in hits}
+    rel_doc_ids = {str(h.parent_chunk.document_id) for h in relevant_hits}
+    return len(doc_ids - rel_doc_ids) > 0
+
+
 def validate_section_coverage(
     section: IndexedChunk,
     hits: list[RetrievalHit],
@@ -36,6 +85,7 @@ def validate_section_coverage(
     section_categories: list[str],
     settings: ReviewSettings | None = None,
     doc_catalog_categories: dict[str, list[str]] | None = None,
+    retrieval_gate_applied: bool = False,
 ) -> SectionCoverageResult:
     """Score whether retrieved policies match the contract section topic."""
     cfg = settings or get_settings()
@@ -44,18 +94,77 @@ def validate_section_coverage(
     if not hits:
         return SectionCoverageResult(section_id=sid, coverage_score=0.0, insufficient=False)
 
-    floor = _relevance_floor(cfg)
+    if retrieval_gate_applied and cfg.retrieval_coverage_filter_aligned:
+        compatible, incompatible, block_reason = _strip_incompatible_hits(
+            hits,
+            section_categories=section_categories,
+            section_title=section_title,
+            doc_catalog_categories=doc_catalog_categories,
+        )
+        if not compatible:
+            return SectionCoverageResult(
+                section_id=sid,
+                relevant_hits=[],
+                dropped_hits=hits,
+                coverage_score=0.0,
+                insufficient=True,
+                reason=block_reason or "no_relevant_policy_hits",
+            )
+        score = len(compatible) / max(len(hits), 1)
+        if _mixed_policy_insufficient(hits, compatible, cfg):
+            return SectionCoverageResult(
+                section_id=sid,
+                relevant_hits=compatible,
+                dropped_hits=incompatible,
+                coverage_score=score,
+                insufficient=True,
+                reason="low_coverage_mixed_policies",
+            )
+        return SectionCoverageResult(
+            section_id=sid,
+            relevant_hits=compatible,
+            dropped_hits=incompatible,
+            coverage_score=score,
+            insufficient=False,
+        )
+
+    if cfg.retrieval_coverage_filter_aligned:
+        kw = relevance_filter_kwargs(cfg, stage="coverage")
+    else:
+        kw = {
+            "min_score": _relevance_floor(cfg),
+            "keep_best_fallback": cfg.retrieval_relevance_keep_best_fallback,
+            "require_specific_overlap": cfg.policy_coverage_require_specific_overlap,
+        }
     relevant, dropped, block_reason = filter_on_topic_hits(
         hits,
         section_categories=section_categories,
         section_title=section_title,
-        min_score=floor,
         doc_catalog_categories=doc_catalog_categories,
-        keep_best_fallback=cfg.retrieval_relevance_keep_best_fallback,
-        require_specific_overlap=cfg.policy_coverage_require_specific_overlap,
+        **kw,
     )
 
     if not relevant:
+        if (
+            cfg.retrieval_meaning_first_enabled
+            and cfg.compare_hit_allow_primary_fallback
+            and hits
+        ):
+            compatible, incompatible, _ = _strip_incompatible_hits(
+                hits,
+                section_categories=section_categories,
+                section_title=section_title,
+                doc_catalog_categories=doc_catalog_categories,
+            )
+            if compatible:
+                cap = max(1, cfg.compare_max_policy_hits)
+                return SectionCoverageResult(
+                    section_id=sid,
+                    relevant_hits=compatible[:cap],
+                    dropped_hits=incompatible,
+                    coverage_score=len(compatible) / max(len(hits), 1),
+                    insufficient=False,
+                )
         reason = block_reason or coverage_block_reason(
             section_categories,
             section_title,
@@ -73,18 +182,15 @@ def validate_section_coverage(
 
     score = len(relevant) / max(len(hits), 1)
 
-    if score < cfg.policy_coverage_min_score and len(dropped) > 0:
-        doc_ids = {str(h.parent_chunk.document_id) for h in hits}
-        rel_doc_ids = {str(h.parent_chunk.document_id) for h in relevant}
-        if len(doc_ids - rel_doc_ids) > 0:
-            return SectionCoverageResult(
-                section_id=sid,
-                relevant_hits=relevant,
-                dropped_hits=dropped,
-                coverage_score=score,
-                insufficient=True,
-                reason="low_coverage_mixed_policies",
-            )
+    if _mixed_policy_insufficient(hits, relevant, cfg):
+        return SectionCoverageResult(
+            section_id=sid,
+            relevant_hits=relevant,
+            dropped_hits=dropped,
+            coverage_score=score,
+            insufficient=True,
+            reason="low_coverage_mixed_policies",
+        )
 
     return SectionCoverageResult(
         section_id=sid,
@@ -119,12 +225,14 @@ def apply_coverage_gate(
     *,
     settings: ReviewSettings | None = None,
     doc_catalog_categories: dict[str, list[str]] | None = None,
+    retrieval_gate_applied_by_section: dict[str, bool] | None = None,
 ) -> tuple[dict[str, list[RetrievalHit]], list[SectionCompareItem], list[str]]:
     """Filter hits per section; emit IPC items when coverage is too low."""
     cfg = settings or get_settings()
     if not cfg.policy_coverage_enabled:
         return dict(hits_by_section), [], []
 
+    gate_flags = retrieval_gate_applied_by_section or {}
     filtered: dict[str, list[RetrievalHit]] = {}
     ipc_items: list[SectionCompareItem] = []
     warnings: list[str] = []
@@ -141,6 +249,7 @@ def apply_coverage_gate(
             section_categories=categories_by_section.get(sid, []),
             settings=cfg,
             doc_catalog_categories=doc_catalog_categories,
+            retrieval_gate_applied=bool(gate_flags.get(sid)),
         )
         if result.insufficient:
             ipc_items.append(_ipc_item(section, result))

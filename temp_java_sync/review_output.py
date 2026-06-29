@@ -21,6 +21,7 @@ class ReviewOutputEnvelope(BaseModel):
     discovered_policy_document_ids: list[str] = Field(default_factory=list)
     contract_document_id: str | None = None
     pipeline: str | None = None
+    engine_diagnosis: dict[str, Any] = Field(default_factory=dict)
     artifacts: dict[str, Any] = Field(default_factory=dict)
     output: str = ""
 
@@ -34,6 +35,7 @@ def build_review_output_envelope(
     """Single JSON shape for dev_ui, run_full_e2e, and run_review_only."""
     findings = [f.model_dump(mode="json") for f in report.findings]
     artifact = report.metadata.get("artifact") or {}
+    engine_diagnosis = report.metadata.get("engine_diagnosis") or {}
     summary = report.summary_markdown or ""
     envelope = ReviewOutputEnvelope(
         finding_count=len(findings),
@@ -47,6 +49,7 @@ def build_review_output_envelope(
         ],
         contract_document_id=contract_document_id,
         pipeline=report.metadata.get("pipeline"),
+        engine_diagnosis=engine_diagnosis,
         artifacts={
             "report": report.model_dump(mode="json"),
             "audit": artifact,

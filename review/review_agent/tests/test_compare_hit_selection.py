@@ -37,7 +37,7 @@ def test_select_hits_category_aligned_prefers_matching_family():
         compare_max_policy_hits=3,
         compare_hit_min_relevance_score=0.2,
     )
-    selected = select_compare_hits(
+    selected, _ = select_compare_hits(
         hits,
         section_categories=["security"],
         section_title="Security Measures",
@@ -57,7 +57,7 @@ def test_select_hits_drops_low_relevance_aligned_hit():
         compare_max_policy_hits=2,
         compare_hit_min_relevance_score=0.35,
     )
-    selected = select_compare_hits(
+    selected, _ = select_compare_hits(
         hits,
         section_categories=["security"],
         section_title="Security Measures",
@@ -73,7 +73,7 @@ def test_select_hits_fallback_primary_when_no_overlap():
         _policy_hit("Compliance policy text", categories=["compliance"], score=0.90),
     ]
     settings = ReviewSettings(compare_policy_hit_mode="category_aligned")
-    selected = select_compare_hits(
+    selected, _ = select_compare_hits(
         hits,
         section_categories=["security"],
         settings=settings,
@@ -84,7 +84,7 @@ def test_select_hits_fallback_primary_when_no_overlap():
 def test_select_hits_rejects_compliance_only_for_human_rights():
     hits = [_policy_hit("Compliance policy text", categories=["compliance"], score=0.99)]
     settings = ReviewSettings(compare_policy_hit_mode="category_aligned")
-    selected = select_compare_hits(
+    selected, _ = select_compare_hits(
         hits,
         section_categories=["human_rights"],
         settings=settings,
@@ -95,9 +95,24 @@ def test_select_hits_rejects_compliance_only_for_human_rights():
 def test_primary_only_mode_returns_one_hit():
     hits = [_policy_hit(f"Policy {i}", score=1.0 - i * 0.1) for i in range(5)]
     settings = ReviewSettings(compare_policy_hit_mode="primary_only")
-    selected = select_compare_hits(hits, section_categories=["security"], settings=settings)
+    selected, _ = select_compare_hits(hits, section_categories=["security"], settings=settings)
     assert len(selected) == 1
     assert selected[0] is hits[0]
+
+
+def test_filter_hits_scoped_to_allowed_documents():
+    hit_a = _policy_hit("Policy A", categories=["security"])
+    hit_b = _policy_hit("Policy B", categories=["security"])
+    doc_a = str(hit_a.parent_chunk.document_id)
+    hits_by_section = {"s1": [hit_a, hit_b]}
+    filtered, _stats = filter_hits_for_compare(
+        hits_by_section,
+        {"s1": ["security"]},
+        settings=ReviewSettings(compare_policy_hit_mode="category_aligned"),
+        allowed_document_ids={doc_a},
+    )
+    assert len(filtered["s1"]) == 1
+    assert "Policy A" in filtered["s1"][0].parent_chunk.text
 
 
 def test_filter_hits_for_compare_stats():
@@ -123,3 +138,5 @@ def test_filter_hits_for_compare_stats():
     assert stats["mode"] == "category_aligned"
     assert stats["category_aligned_sections"] == 1
     assert stats["fallback_primary_sections"] == 1
+    assert stats["trusted_gate_fallback_sections"] == 0
+    assert stats["selection_empty_with_hits"] == 1

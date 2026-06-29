@@ -15,7 +15,9 @@ class ObligationRoutingPlan(BaseModel):
     explicit_policy_mentions: list[str] = Field(default_factory=list)
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     reasoning: str = ""
-    routing_source: Literal["registry_alias", "llm", "skipped_boilerplate"] = "llm"
+    routing_source: Literal[
+        "registry_alias", "llm", "planner_fallback", "skipped_boilerplate"
+    ] = "llm"
     resolved_document_ids: list[str] = Field(default_factory=list)
 
 

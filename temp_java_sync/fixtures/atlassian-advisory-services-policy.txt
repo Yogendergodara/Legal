@@ -1,0 +1,209 @@
+Effective starting: January 8, 2025
+
+This Advisory Services Policy (this “ Policy ”) supplements the Atlassian Customer Agreement , or another agreement entered between Customer and Atlassian (the “ Agreement ”) and governs Atlassian’s provision of advisory services in connection with Atlassian Products (“ Advisory Services ”). This Policy controls in the event of a conflict with the Agreement. Capitalized terms used and not defined in this Policy have the meanings given to them in the Agreement.
+
+Advisory Services include (a) standalone service offerings (such as plays, assessments and workshops) (“ Catalog Services ”) and (b) subscription plans (“ Subscription Services ”). A full description of the Advisory Services offerings is available here , as updated from time to time. The scope of particular Advisory Services is indicated in the Order and in the applicable Advisory Services datasheet (available via the link above).
+
+1. Subscription Term and Consumption Period
+
+1.1. Subscription Services. Subscription Services begin on the start date indicated in the applicable Order and are provided on a continuing basis for the duration of the Subscription Term. Any Subscription Term for Advisory Services may only be renewed by mutual written agreement of the parties. Any renewal terms and conditions, including pricing, are subject to change.
+
+1.2. Catalog Services. Catalog Services must be consumed within 12 months from the date of the Order. After this period, Customer will no longer have any access to the Catalog Service.
+
+2. Availability of Advisory Services Representatives
+
+Advisory Services are offered during Business Hours (as defined below) and are delivered by Atlassian product specialists such as engagement managers, solution strategists and/or technical architects (each, an “ Advisory Services Representative ”) following a kick-off meeting to be scheduled within 30 days from the date of the Order or the start of the Subscription Term, whichever is later. Atlassian may designate different Advisory Services Representatives to provide Advisory Services (or portions of Advisory Services), depending on the particular services and Atlassian Products in scope. Advisory Services may be provided remotely or, for certain types and/or Subscription Services plans, on site, in each case, on a schedule mutually agreed between Atlassian and Customer’s Account Representatives (as defined below). More information regarding on-site services delivery is included in Section 5 (Travel & Living Expenses). For Subscription Services, Advisory Services Representatives will be available to provide the Subscription Services for up to the number of hours per three-month period specified in the table below. “ Business Hours ” means 9 am to 5 pm in a mutually agreed primary location for service delivery on any day that is not an Atlassian-designated holiday or weekend in such location.
+
+Tier of Subscription Services
+
+Hours per Three-Month Period*
+
+Essential
+
+Hours per Three-Month Period*
+
+60
+
+Signature
+
+Hours per Three-Month Period*
+
+140
+
+Elite
+
+Hours per Three-Month Period*
+
+230
+
+* Hours not consumed in a given three-month period cannot be banked, accumulated or saved for subsequent periods
+
+3. Account Representatives
+
+Customer must designate up to two individuals to serve as key points of contact with the Advisory Services team (the “ Account Representatives ”). Customer must submit all requests through its Account Representatives, and Atlassian will rely and act upon each Account Representative’s instructions. Customer must ensure that the Account Representatives have baseline technical knowledge of the Products associated with the Advisory Services.
+
+4. Limitations of Advisory Services
+
+Fees for Advisory Services are to secure the availability, time and effort of Advisory Services Representatives. Atlassian will use commercially reasonable efforts to provide Advisory Services in a professional manner and to address Customer requests, but Atlassian does not guarantee resolution of such requests. Actual areas of advice and guidance will depend on the ordered Advisory Services, as well as on Customer's requests and needs. Topics that are not explicitly listed in an Advisory Services description or in an applicable Advisory Services datasheet are outside the scope of the related services.
+
+5. Travel & Living Expenses
+
+As indicated in the table below, certain Advisory Services offerings include on-site services.
+
+Advisory Services
+
+Tier or Type
+
+Included On-Site Visits*
+
+Subscription Services
+
+Tier or Type
+
+Signature
+
+Included On-Site Visits*
+
+Two
+
+Subscription Services
+
+Tier or Type
+
+Elite
+
+Included On-Site Visits*
+
+Four
+
+Catalog Services
+
+Tier or Type
+
+For Jira Align (workshops)
+
+Included On-Site Visits*
+
+Two
+
+* Each on-site visit to be for two business days unless otherwise agreed
+
+Otherwise, on-site services are not included in the Advisory Services unless agreed on a case-by-case basis. In such case, any pre-approved travel, lodging and meal expenses incurred by an Advisory Services Representative may be invoiced directly to Customer, at minimum monthly, and Customer will reimburse Atlassian for those expenses in accordance with the payment terms in the applicable Order for the Advisory Services.
+
+6. Catalog Services
+
+6.1. General. Catalog Services are standalone service offerings (such as plays, assessments and workshops) to discuss the design and implementation of Customer’s deployment of Atlassian Products or solutions, as described in the applicable Catalog Services datasheet.
+
+6.2. Jira Align. In the case of workshop Catalog Services for Jira Align, the services include demonstration of how Jira Align will work with a compatible product (like Jira Software) specified here , as updated from time to time (each, a “ Compatible Product ”). Certain aspects of Catalog Services delivery for Jira Align cannot begin until Customer establishes connectivity between one Compatible Product and one Jira Align instance so that data is able to transit between the Compatible Product and Jira Align (“ System and Data Connectivity ”). Customer is solely responsible for establishing the required System and Data Connectivity, and Section 1.2 (Catalog Services) applies. In addition, if Customer orders workshop Catalog Services for Jira Align through an authorized partner or reseller, all or any portion of the services may be provided by such partner or reseller.
+
+6.3. Refund Policy. Customer may request a refund for Catalog Services if Customer provides notice to Atlassian via Customer’s Account Representative within 30 days of the date of the Order and before Atlassian has commenced delivery.
+
+7. Change Control Procedure
+
+Changes to an Advisory Services engagement may be made only in a writing executed by both parties, and Atlassian has no obligation to commence work in connection with any change request until such time.
+
+8. Customer Use Rights
+
+As part of the Advisory Services, Atlassian may provide reports, analyses, templates, technology, or other deliverables. Customer may use such deliverables only as part of its authorized use of the Products.
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Product-specific terms
+
+Learn more
+
+Advisory Services
+
+Learn more
+
+Data Processing Addendum
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

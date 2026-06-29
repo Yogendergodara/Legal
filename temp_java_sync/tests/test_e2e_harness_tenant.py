@@ -54,3 +54,4 @@ def test_sync_policies_omits_tenant_when_not_set() -> None:
     asyncio.run(sync_policies(http, [{"policy_ref": "p1", "title": "P", "text": "body"}]))
 
     assert "tenant_id" not in captured["json"]
+    assert captured["json"]["replace_tenant_policies"] is False

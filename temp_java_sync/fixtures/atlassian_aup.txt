@@ -1,0 +1,32 @@
+Acceptable Use Policy
+Effective starting: October 7, 2025
+
+Here at Atlassian, our goal is to help you and your team do the best work of your lives, every day. Under this policy, we reserve the right to take action if we see objectionable content that is inconsistent with the spirit of the guidelines, even if it is not forbidden by the letter of this policy.
+
+Disruption
+• Compromising the security or operation of our systems, including probing or testing vulnerability without express permission
+• Tampering with, reverse-engineering, or hacking our services or attempting unauthorized access
+• Overwhelming our infrastructure with unreasonably large load including automated scraping beyond human browsing
+
+Wrongful activities
+• Misrepresentation, phishing, impersonation, or false sponsorship
+• Violating the privacy of others or collecting personal information without permission
+• Stalking, harassment, threats, or illegal purposes
+• Accessing services by means other than publicly supported interfaces (scraping)
+• Using services for disaster or emergency alerting unrelated to authorized use
+
+Inappropriate content
+• Content that infringes intellectual property or privacy rights
+• False, misleading, illegal, obscene, defamatory, threatening, harmful, or hateful content
+• Malware, viruses, or materials that could cause injury or harm
+
+Artificial intelligence offerings and features
+When using AI offerings such as Rovo and Loom AI, you must not:
+• Seek or provide professional legal, medical, financial or similar licensed advice
+• Make automated decisions with legal or similarly significant effects
+• Engage in prohibited or high-risk uses under applicable law
+• Mislead individuals into believing they communicate with a human when they are not
+• Use prompt injection, jailbreaking, or circumvent safety measures
+• Generate disinformation, fake reviews, plagiarism, or sexually explicit chat with AI features
+
+Atlassian may remove content or suspend accounts for violations without notice or liability.

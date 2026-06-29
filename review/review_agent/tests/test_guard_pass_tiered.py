@@ -85,10 +85,16 @@ async def test_guard_unsupported_triggers_repair(monkeypatch):
     async def _fake_invoke(_model, schema, *, system, user):
         guard_calls["n"] += 1
         if schema is BatchRationaleGuardLLMResult:
+            if guard_calls["n"] == 1:
+                return _batch_guard_result(
+                    user,
+                    support_level=SupportLevel.UNSUPPORTED,
+                    reason="Fabricated amount.",
+                )
             return _batch_guard_result(
                 user,
-                support_level=SupportLevel.UNSUPPORTED,
-                reason="Fabricated amount.",
+                support_level=SupportLevel.FULL,
+                reason="ok",
             )
         if guard_calls["n"] == 1:
             return RationaleGuardResult(
@@ -97,13 +103,16 @@ async def test_guard_unsupported_triggers_repair(monkeypatch):
             )
         return RationaleGuardResult(support_level=SupportLevel.FULL, reason="ok")
 
-    async def _fake_repair(finding, *, settings=None):
-        return "Contract uses a three-month fees basis versus twelve months in policy."
+    async def _fake_repair_batch(findings, *, settings=None):
+        return {
+            f.finding_id: "Contract uses a three-month fees basis versus twelve months in policy."
+            for f in findings
+        }
 
     monkeypatch.setattr("review_agent.services.guard_pass.invoke_structured", _fake_invoke)
     monkeypatch.setattr(
-        "review_agent.services.guard_pass.repair_rationale_for_finding",
-        _fake_repair,
+        "review_agent.services.guard_pass.repair_rationales_batch",
+        _fake_repair_batch,
     )
     monkeypatch.setattr("review_agent.services.guard_pass.get_review_model", lambda **_: object())
 
@@ -135,13 +144,13 @@ async def test_guard_unsupported_downgrades_after_repair_fail(monkeypatch):
             reason="Hallucinated fact.",
         )
 
-    async def _fake_repair(finding, *, settings=None):
-        return "Still cites $5M cap not in quotes."
+    async def _fake_repair_batch(findings, *, settings=None):
+        return {f.finding_id: "Still cites $5M cap not in quotes." for f in findings}
 
     monkeypatch.setattr("review_agent.services.guard_pass.invoke_structured", _fake_invoke)
     monkeypatch.setattr(
-        "review_agent.services.guard_pass.repair_rationale_for_finding",
-        _fake_repair,
+        "review_agent.services.guard_pass.repair_rationales_batch",
+        _fake_repair_batch,
     )
     monkeypatch.setattr("review_agent.services.guard_pass.get_review_model", lambda **_: object())
 

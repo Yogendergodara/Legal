@@ -9,6 +9,7 @@ from review_agent.services.retrieval_relevance import (
     filter_hits_by_relevance,
     has_specific_category_overlap,
     is_incompatible_hit,
+    score_hit_relevance,
 )
 
 
@@ -144,3 +145,70 @@ def test_security_hit_still_aligns():
         keep_best_fallback=False,
     )
     assert relevant == [sec_hit]
+
+
+def test_general_preamble_hit_penalized_below_relevance_floor(monkeypatch):
+    monkeypatch.setenv("RETRIEVAL_PENALIZE_PREAMBLE_GENERAL", "true")
+    from review_agent.config import get_settings
+
+    get_settings.cache_clear()
+    gov_doc = UUID("00000000-0000-0000-0000-000000000020")
+    preamble_hit = RetrievalHit(
+        parent_chunk=IndexedChunk(
+            chunk_id=f"{gov_doc}:preamble",
+            document_id=gov_doc,
+            tenant_id="t1",
+            kind=DocumentKind.POLICY,
+            chunk_role=ChunkRole.PARENT,
+            section_id="preamble",
+            section_path="preamble",
+            title="Government Amendment",
+            text="General amendment terms",
+            metadata={"categories": ["general"]},
+        ),
+        matched_child_ids=[],
+        score=0.95,
+    )
+    score = score_hit_relevance(
+        preamble_hit,
+        section_categories=["general"],
+        section_title="1. Overview",
+    )
+    assert score <= 0.25
+    relevant, dropped = filter_hits_by_relevance(
+        [preamble_hit],
+        section_categories=["general"],
+        section_title="1. Overview",
+        min_score=0.35,
+        keep_best_fallback=False,
+    )
+    assert relevant == []
+    assert dropped == [preamble_hit]
+    get_settings.cache_clear()
+
+
+def test_fallback_on_overlap_miss_uses_keep_best():
+    compliance_hit = _parent_hit(
+        doc_id=SEC_DOC,
+        title="Compliance standards",
+        categories=["compliance"],
+    )
+    kwargs = dict(
+        section_categories=["security"],
+        section_title="Supply Chain Security Requirements",
+        min_score=0.0,
+        keep_best_fallback=True,
+        require_specific_overlap=True,
+    )
+    empty, _ = filter_hits_by_relevance(
+        [compliance_hit],
+        fallback_on_overlap_miss=False,
+        **kwargs,
+    )
+    assert empty == []
+    kept, _ = filter_hits_by_relevance(
+        [compliance_hit],
+        fallback_on_overlap_miss=True,
+        **kwargs,
+    )
+    assert len(kept) == 1

@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Sync Xecurify policies + review Xecurify Plugin End User License Agreement."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+
+import httpx
+
+from bootstrap_env import load_env, setup_pythonpath
+
+load_env()
+setup_pythonpath()
+
+from e2e_harness import review_text, sync_policies  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent
+FIXTURE = ROOT / "fixtures" / "xecurify_e2e.json"
+CONTRACT = ROOT / "fixtures" / "xecurify_plugin_eula.txt"
+OUT = ROOT / "outputs" / "xecurify_plugin_eula_review.json"
+ASSESSMENT = ROOT / "outputs" / "xecurify_plugin_eula_assessment.json"
+
+
+async def main() -> int:
+    if not FIXTURE.is_file() or not CONTRACT.is_file():
+        print("Missing fixture files", file=sys.stderr)
+        return 1
+
+    data = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    policies = data["policies"]
+    contract_text = CONTRACT.read_text(encoding="utf-8")
+    tenant = data.get("tenant_id", "e2e-demo")
+
+    print(f"contract: {len(contract_text):,} chars | policies: {len(policies)}")
+    for p in policies:
+        print(f"  - {p.get('title')}")
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(7200.0)) as http:
+        health = await http.get("http://localhost:8090/api/health")
+        health.raise_for_status()
+
+        print(f"\n=== Sync {len(policies)} Xecurify policies (tenant={tenant}) ===")
+        await sync_policies(http, policies, tenant_id=tenant)
+
+        print("\n=== Review Xecurify Plugin EULA ===")
+        out = await review_text(
+            http,
+            contract_text=contract_text,
+            contract_title="End User License Agreement - Xecurify Plugin",
+            contract_type="saas",
+            query=(
+                "Review this Xecurify plugin end user license agreement against our "
+                "privacy policy, security practices, data retention, incident response, "
+                "and code of conduct policies"
+            ),
+            tenant_id=tenant,
+            use_platform=False,
+        )
+
+    OUT.parent.mkdir(exist_ok=True)
+    OUT.write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    findings = out.get("findings") or []
+    by_status = Counter(f.get("status") for f in findings)
+    violations = [f for f in findings if f.get("status") == "NON_COMPLIANT"]
+    artifact = out.get("artifact") or {}
+    sections = artifact.get("sections") or []
+    stats = artifact.get("compliance_stats") or {}
+
+    print(f"\nfindings: {len(findings)} | {dict(by_status)}")
+    print(f"sections parsed: {len(sections)}")
+    if sections:
+        print("section ids:", ", ".join(s.get("section_id", "?") for s in sections))
+    print(f"obligation_count: {stats.get('obligation_count')}")
+    print(f"obligation_compare_count: {stats.get('obligation_compare_count')}")
+    print(f"weighted_alignment_score: {stats.get('weighted_alignment_score')}")
+    rs = stats.get("routing_summary") or {}
+    if rs:
+        print(
+            f"routing_summary: ipc_rate={rs.get('ipc_rate')} "
+            f"compare_rate={rs.get('compare_rate')} wrong_blocked={rs.get('wrong_policy_blocked')}"
+        )
+
+    for p in out.get("assessment_paths") or []:
+        ap = ROOT / "outputs" / p
+        if ap.is_file():
+            ASSESSMENT.write_text(ap.read_text(encoding="utf-8"), encoding="utf-8")
+            print(f"assessment: {ASSESSMENT}")
+
+    print(f"\nNON_COMPLIANT ({len(violations)}):")
+    for f in violations[:15]:
+        print(
+            f"  [{f.get('contract_section_id')}] {f.get('policy_title') or 'no policy'} | "
+            f"{(f.get('rationale') or '')[:120]}"
+        )
+
+    print(f"\nWrote {OUT}")
+    print((out.get("summary_markdown") or "")[:1800])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(asyncio.run(main()))

@@ -60,7 +60,7 @@ async def test_retrieval_node_rerank_rollup(monkeypatch) -> None:
                 query_terms=[sid],
             )
             for sid in ("s1", "s2")
-        }
+        }, {}
 
     async def _fake_retrieve(*_args, section, **_kwargs):
         meta = {"reranker_used": "cross_encoder", "reranker_backend": "cross_encoder"}

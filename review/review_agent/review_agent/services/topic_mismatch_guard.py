@@ -42,11 +42,20 @@ def _is_topic_mismatch(
     section_categories: list[str],
     section_title: str,
     hit: RetrievalHit,
+    *,
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> bool:
-    if is_incompatible_hit(section_categories, section_title, hit):
+    if is_incompatible_hit(
+        section_categories,
+        section_title,
+        hit,
+        doc_catalog_categories=doc_catalog_categories,
+    ):
         return True
     if _section_has_specific_categories(section_categories) and not has_specific_category_overlap(
-        section_categories, hit
+        section_categories,
+        hit,
+        doc_catalog_categories=doc_catalog_categories,
     ):
         return True
     return False
@@ -58,6 +67,7 @@ def apply_topic_mismatch_guard(
     sections_by_id: dict[str, IndexedChunk],
     categories_by_section: dict[str, list[str]],
     hits_by_section: dict[str, list[RetrievalHit]],
+    doc_catalog_categories: dict[str, list[str]] | None = None,
 ) -> tuple[list[SectionCompareItem], int]:
     """Downgrade false NON_COMPLIANT / INCONCLUSIVE when paired policy is off-topic."""
     downgraded = 0
@@ -70,7 +80,12 @@ def apply_topic_mismatch_guard(
         section_title = (section.title if section else None) or item.section_id
         section_categories = categories_by_section.get(item.section_id, [])
         hit = _resolve_hit(item, hits_by_section)
-        if hit is None or not _is_topic_mismatch(section_categories, section_title, hit):
+        if hit is None or not _is_topic_mismatch(
+            section_categories,
+            section_title,
+            hit,
+            doc_catalog_categories=doc_catalog_categories,
+        ):
             result.append(item)
             continue
         rationale = item.rationale

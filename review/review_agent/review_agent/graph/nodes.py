@@ -18,6 +18,7 @@ from document_core.services.registry import stable_contract_document_id
 from document_core.schemas.compliance import ComplianceStatus, ReviewReport
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import get_settings
+from review_agent.errors import FatalPipelineError
 from review_agent.models.llm_gateway import get_llm_limiter_stats
 from review_agent.reports.generator import render_markdown_report
 from review_agent.reports.summary_llm import maybe_llm_summary_paragraph
@@ -26,7 +27,7 @@ from review_agent.services.finding_enrich import (
     enrich_findings_policy_titles,
 )
 from review_agent.services.guard_pass import run_guard_pass
-from review_agent.services.grounding_quote import verify_quote_with_repair
+from review_agent.services.grounding_quote import finalize_grounded_finding, ground_findings_quotes
 from review_agent.services.review_artifact import build_review_artifact
 from review_agent.services.section_coverage import ensure_section_coverage, reviewable_sections
 from review_agent.services.section_gap_status import gap_status_summary
@@ -178,129 +179,56 @@ async def clause_detection_node(state: ReviewState, client: DocumentMCPClient) -
 
 async def grounding_node(state: ReviewState, client: DocumentMCPClient) -> dict[str, Any]:
     settings = get_settings()
+    try:
+        return await _grounding_node_impl(state, client, settings)
+    except FatalPipelineError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        if not settings.grounding_branch_fail_open:
+            raise
+        prior = dict(state.get("compliance_stats") or {})
+        findings = list(state.get("findings") or [])
+        return {
+            "grounded_findings": findings,
+            "warnings": [f"grounding branch failed (fail-open): {exc}"],
+            "section_coverage": dict(state.get("section_coverage") or {}),
+            "compliance_stats": {
+                **prior,
+                "grounding_fail_open": True,
+                "grounding_fail_reason": str(exc)[:500],
+            },
+        }
+
+
+async def _grounding_node_impl(
+    state: ReviewState,
+    client: DocumentMCPClient,
+    settings,
+) -> dict[str, Any]:
     ingest = state["ingest_result"]
     grounded: list = []
     warnings: list[str] = []
-    grounding_stats: dict[str, int] = {
-        "quote_repair_attempts": 0,
-        "quote_repair_success": 0,
-    }
     title_map = build_policy_title_map(
         state.get("indexed_policies") or [],
         state.get("discovered_policies"),
     )
     findings = enrich_findings_policy_titles(state.get("findings") or [], title_map)
 
-    for finding in findings:
-        if finding.status.value == "INSUFFICIENT_POLICY_CONTEXT":
-            grounded.append(finding.model_copy(update={"grounded": True}))
-            continue
-
-        if not finding.contract_quote and not finding.policy_quote:
-            continue
-
-        quote_meta: dict[str, Any] = {}
-        contract_quote = finding.contract_quote
-        policy_quote = finding.policy_quote
-        contract_ok = True
-        policy_ok = True
-
-        if finding.contract_quote:
-            contract_quote, contract_ok, contract_meta = await verify_quote_with_repair(
-                client,
-                tenant_id=state["tenant_id"],
-                document_id=ingest.document_id,
-                quote=finding.contract_quote,
-                section_id=finding.contract_section_id,
-                settings=settings,
-                stats=grounding_stats,
-                verify_fn=client.verify_quote,
-            )
-            quote_meta.update(contract_meta)
-
-        if finding.policy_quote and finding.policy_document_id:
-            policy_quote, policy_ok, policy_meta = await verify_quote_with_repair(
-                client,
-                tenant_id=state["tenant_id"],
-                document_id=finding.policy_document_id,
-                quote=finding.policy_quote,
-                section_id=finding.policy_section_id or "",
-                settings=settings,
-                stats=grounding_stats,
-                verify_fn=client.verify_policy_quote,
-            )
-            quote_meta.update(policy_meta)
-
-        ok = contract_ok and policy_ok
-        if (
-            not ok
-            and settings.grounding_relax_compliant_empty_policy
-            and finding.status == ComplianceStatus.COMPLIANT
-            and contract_ok
-            and not (finding.policy_quote or "").strip()
-        ):
-            from review_agent.services.quote_validate import allows_compliant_without_policy_quote
-
-            if allows_compliant_without_policy_quote(
-                finding.status,
-                finding.rationale,
-                contract_ok=contract_ok,
-            ):
-                ok = True
-                policy_ok = True
-        if ok:
-            meta = dict(finding.metadata or {})
-            meta.update(quote_meta)
-            grounded.append(
-                finding.model_copy(
-                    update={
-                        "grounded": True,
-                        "contract_quote": contract_quote,
-                        "policy_quote": policy_quote,
-                        "metadata": meta,
-                    }
-                )
-            )
-        elif settings.grounding_downgrade_mode == "keep_status_flag":
-            meta = dict(finding.metadata or {})
-            meta.update(quote_meta)
-            meta["grounding_failed"] = True
-            grounded.append(
-                finding.model_copy(
-                    update={
-                        "grounded": False,
-                        "contract_quote": contract_quote if contract_ok else "",
-                        "policy_quote": policy_quote if policy_ok else "",
-                        "metadata": meta,
-                    }
-                )
-            )
-            warnings.append(
-                f"finding ungrounded (status kept): {finding.dimension_label}"
-            )
-        elif settings.grounding_downgrade_not_drop:
-            meta = dict(finding.metadata or {})
-            meta.update(quote_meta)
-            meta["grounding_failed"] = True
-            meta["prior_status"] = finding.status.value
-            grounded.append(
-                finding.model_copy(
-                    update={
-                        "status": ComplianceStatus.INCONCLUSIVE,
-                        "grounded": False,
-                        "metadata": meta,
-                        "contract_quote": contract_quote if contract_ok else "",
-                        "policy_quote": policy_quote if policy_ok else "",
-                    }
-                )
-            )
-            warnings.append(
-                f"finding downgraded to INCONCLUSIVE (grounding failed): {finding.dimension_label}"
-            )
-        else:
-            warnings.append(
-                f"finding dropped (grounding failed): {finding.dimension_label}"
-            )
+    ground_states, grounding_stats = await ground_findings_quotes(
+        client,
+        tenant_id=state["tenant_id"],
+        contract_document_id=ingest.document_id,
+        findings=findings,
+        settings=settings,
+    )
+    for gs in ground_states:
+        finalized = finalize_grounded_finding(
+            gs,
+            settings=settings,
+            warnings=warnings,
+        )
+        if finalized is not None:
+            grounded.append(finalized)
 
     guard_stats: dict[str, int] = {}
     if settings.guard_pass_enabled:
@@ -350,6 +278,18 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
     findings = state.get("grounded_findings") or []
     stats = dict(state.get("compliance_stats") or {})
     stats["llm_rate_limit_events"] = get_llm_limiter_stats()["rate_limit_events"]
+    from review_agent.services.mcp_search_cache import cache_stats
+
+    stats.update(cache_stats())
+    from review_agent.resilience.circuit_breaker import (
+        breaker_open_events,
+        breaker_open_events_llm,
+        breaker_open_events_mcp,
+    )
+
+    stats["breaker_open_events"] = breaker_open_events()
+    stats["breaker_open_events_llm"] = breaker_open_events_llm()
+    stats["breaker_open_events_mcp"] = breaker_open_events_mcp()
     stats["policy_conflict_count"] = sum(
         1 for f in findings if f.status == ComplianceStatus.POLICY_CONFLICT
     )
@@ -357,7 +297,6 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
     finding_section_ids = sorted(
         {f.contract_section_id for f in findings if f.contract_section_id}
     )
-    artifact = build_review_artifact(state, findings=findings, settings=settings)
     gap_summary = gap_status_summary(findings)
     gap_summary["compare_omitted_recovered"] = int(
         (state.get("final_verify_stats") or {}).get("compare_omitted_recovered") or 0
@@ -365,9 +304,32 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
     from review_agent.services.review_confidence import compute_review_confidence_metrics
 
     reviewable_count = int(coverage_meta.get("reviewable_count") or 0)
-    stats["review_confidence"] = compute_review_confidence_metrics(
+    review_confidence = compute_review_confidence_metrics(
         findings,
         sections_total=reviewable_count or None,
+    )
+    stats["review_confidence"] = review_confidence
+
+    engine_diagnosis: dict[str, Any] = {}
+    if settings.engine_diagnosis_enabled:
+        from review_agent.services.engine_diagnosis import build_engine_diagnosis
+
+        engine_diagnosis = build_engine_diagnosis(
+            state=state,
+            findings=findings,
+            compliance_stats=stats,
+            final_verify_stats=dict(state.get("final_verify_stats") or {}),
+            gap_status_summary=gap_summary,
+            review_confidence=review_confidence,
+        )
+        stats["engine_diagnosis"] = engine_diagnosis
+
+    artifact = build_review_artifact(
+        state,
+        findings=findings,
+        settings=settings,
+        engine_diagnosis=engine_diagnosis,
+        compliance_stats=stats,
     )
     report = ReviewReport(
         tenant_id=state["tenant_id"],
@@ -398,6 +360,7 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
             "discovery_warnings": list(state.get("discovery_warnings") or []),
             "pipeline": "section_first",
             "gap_status_summary": gap_summary,
+            "engine_diagnosis": engine_diagnosis,
             "artifact": artifact.model_dump(mode="json"),
         },
     )

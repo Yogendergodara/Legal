@@ -6,7 +6,7 @@ import os
 
 from document_core.schemas.taxonomy import normalize_categories
 from review_agent.clients.document_client import DocumentMCPClient, STALE_MCP_PROBE_MESSAGE
-from review_agent.config import get_settings
+from review_agent.config import ReviewSettings, get_settings
 
 STALE_MCP_MESSAGE = STALE_MCP_PROBE_MESSAGE
 
@@ -21,7 +21,17 @@ def _env(name: str) -> str:
 
 
 def check_llm_credentials() -> None:
-    api_key = _env("LLM_API_KEY") or _env("OPENAI_API_KEY") or _env("MISTRAL_API_KEY")
+    from review_agent.models.llm_key_pool import current_api_key, pool_active
+
+    if pool_active():
+        if current_api_key():
+            return
+    api_key = (
+        _env("REVIEW_LLM_API_KEY")
+        or _env("LLM_API_KEY")
+        or _env("OPENAI_API_KEY")
+        or _env("MISTRAL_API_KEY")
+    )
     if api_key or _env("LLM_BASE_URL"):
         return
     raise ReviewPreflightError("LLM credentials not configured")
@@ -93,25 +103,42 @@ async def run_review_preflight(
     tenant_id: str | None = None,
     policy_document_ids: list[str] | None = None,
     contract_document_id: str | None = None,
+    settings: ReviewSettings | None = None,
+    reviewable_sections: int | None = None,
 ) -> list[str]:
     if not preflight_enabled:
         return []
+    cfg = settings or get_settings()
     check_llm_credentials()
     await check_document_mcp(client)
     probe = (
         mcp_capability_probe
         if mcp_capability_probe is not None
-        else get_settings().review_preflight_mcp_capability_probe
+        else cfg.review_preflight_mcp_capability_probe
     )
     if probe and tenant_id:
         await check_mcp_search_metadata_capability(client, tenant_id=tenant_id)
     elif probe:
         await check_mcp_search_metadata_capability(client)
+    warnings: list[str] = []
     if tenant_id and policy_document_ids:
-        return await check_scoped_documents_indexed(
-            client,
-            tenant_id=tenant_id,
-            policy_document_ids=policy_document_ids,
-            contract_document_id=contract_document_id,
+        warnings.extend(
+            await check_scoped_documents_indexed(
+                client,
+                tenant_id=tenant_id,
+                policy_document_ids=policy_document_ids,
+                contract_document_id=contract_document_id,
+            )
         )
-    return []
+    from review_agent.services.config_advisory import (
+        evaluate_config_advisories,
+        format_config_advisory_warnings,
+    )
+
+    advisories = evaluate_config_advisories(
+        cfg,
+        tenant_id=tenant_id or "",
+        reviewable_sections=reviewable_sections,
+    )
+    warnings.extend(format_config_advisory_warnings(advisories))
+    return warnings

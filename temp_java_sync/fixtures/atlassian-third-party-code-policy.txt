@@ -1,0 +1,123 @@
+Effective starting: November 22, 2024
+
+This Third-Party Code Policy supplements the Atlassian Customer Agreement or another agreement entered between Customer and Atlassian (the “ Agreement ”). Any capitalized terms used and not defined below have the meanings given to them in the Agreement. The Products contain code and libraries that Atlassian licenses from third parties.
+
+1. Open Source Software in the Products
+
+1.1. Open Source Software. The Products include third-party technologies that are subject to separate open source or source available licenses that govern Customer’s use, replication, modification or creation of derivative works and redistribution of such third-party technologies (“ Open Source Software ”). Where required, Atlassian provides attribution for the Open Source Software distributed with a Product in accordance with the applicable open source or source available license(s).
+
+1.2. Source Code Requests. For Open Source Software subject to a license that gives Customer the right to receive the source code for the binary distributed to Customer, if the source code for the Open Source Software was not provided with the binary distribution, Customer may request a copy of the source code at ip-law@atlassian.com . To receive a copy, Customer must (a) provide the name of the Open Source Software for which Customer is requesting the source code, (b) identify the relevant Product and the date of Customer’s Order for that Product, and (c) provide its entity name (if applicable) and the name of the person making the request, as well as a return mailing address and email. Atlassian may charge a fee to cover the cost of physical media and processing.
+
+2. Combining the Products with Other Software
+
+Customer may only modify the Products as expressly specified in the “Modifications” Section of the Agreement. In connection with any Modifications, Customer must not: (a) combine or distribute the Products with any other software, including Open Source Software, where the combined software would be subject to any license that requires, as a condition of use or distribution, that the combined software be made available in source code form, or (b) grant any third party any rights or waivers relating to any intellectual property or proprietary rights in the Products.
+
+3. Commercial Third-Party Code in the Products
+
+3.1. Commercial Components. The Products also include components that Atlassian licenses commercially from third parties (“ Commercial Components ”). Customer may use Commercial Components only in conjunction with and through the Products as provided by Atlassian, and the restrictions for the Products in the Agreement also apply to Commercial Components. Commercial Components are also subject to the remainder of this Section 3.
+
+3.2. Restrictions. Customer must not (and must not permit anyone else to): (a) install, access or attempt to access, configure or use any Commercial Component (including any APIs, tools, databases or other aspects of any Commercial Components) separately from the rest of the Product, whether for production, technical support or any other purpose or (b) modify any Commercial Component (even where provided in source code form).
+
+3.3. Commercial Component Licensors . The applicable third-party licensor ( “Commercial Component Licensor” ) retains all ownership and intellectual property rights to the Commercial Component. Commercial Component Licensors do not assume any of Atlassian's obligations under the Agreement. To the maximum extent permitted by Law, no Commercial Component Licensor will be liable to Customer for any damages whatsoever.
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Product-specific terms
+
+Learn more
+
+Advisory Services
+
+Learn more
+
+Data Processing Addendum
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

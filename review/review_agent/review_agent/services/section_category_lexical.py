@@ -22,6 +22,7 @@ _CATEGORY_KEYWORDS: tuple[tuple[str, str], ...] = (
     (r"assign(ment|able)|transfer of (this )?agreement", "termination"),
     (r"\binsurance\b|certificate of insurance", "insurance"),
     (r"service level|\bsla\b", "sla"),
+    (r"\bsupport\b|advisory services", "sla"),
     (r"payment|invoice", "payment"),
     (r"security control|encryption|access control|master security|\bmss\b|supply chain security", "security"),
     (r"information security|cybersecurity|data security", "security"),
@@ -35,7 +36,11 @@ _CATEGORY_KEYWORDS: tuple[tuple[str, str], ...] = (
     (r"non-compete|employment", "employment"),
     (r"procurement|sourcing", "procurement"),
     (r"\bai\b|automated decision|machine learning", "ai_usage"),
-    (r"supplier code of conduct|code of conduct|\brba\b|social compliance|saq\b|vap audit", "compliance"),
+    (
+        r"\bcode of conduct\b|supplier code of conduct|\brba\b|social compliance|"
+        r"\bsaq\b|vap audit",
+        "compliance",
+    ),
     (
         r"human rights|forced labor|modern slavery|traffick|bonded labor|indentured labor|"
         r"freedom of association|un guiding principles|\bilo\b",
@@ -144,6 +149,21 @@ def _scan_text(text: str, *, title_priority: bool) -> list[str]:
     return found
 
 
+def _filter_body_compliance_noise(
+    categories: list[str],
+    *,
+    title: str,
+    body: str,
+) -> list[str]:
+    """Drop body-inferred compliance unless code of conduct is explicit in the opener."""
+    if "compliance" not in categories:
+        return categories
+    opener = f"{title} {body[:120]}".lower()
+    if "code of conduct" in opener or "supplier code" in opener:
+        return categories
+    return [category for category in categories if category != "compliance"]
+
+
 def infer_lexical_classify(
     section: IndexedChunk,
     *,
@@ -176,20 +196,32 @@ def infer_lexical_classify(
 
     from_partial = _body_scan(body[:scan_chars])
     if from_partial:
-        return LexicalClassifyResult(
-            categories=from_partial,
-            confidence="body",
-            matched_via="body",
+        filtered = _filter_body_compliance_noise(
+            from_partial,
+            title=title,
+            body=body,
         )
+        if filtered:
+            return LexicalClassifyResult(
+                categories=filtered,
+                confidence="body",
+                matched_via="body",
+            )
 
     if body and len(body) <= full_max:
         from_full = _body_scan(body)
         if from_full:
-            return LexicalClassifyResult(
-                categories=from_full,
-                confidence="body",
-                matched_via="body_full",
+            filtered = _filter_body_compliance_noise(
+                from_full,
+                title=title,
+                body=body,
             )
+            if filtered:
+                return LexicalClassifyResult(
+                    categories=filtered,
+                    confidence="body",
+                    matched_via="body_full",
+                )
 
     return LexicalClassifyResult(categories=[], confidence="none", matched_via="")
 

@@ -1,0 +1,25 @@
+Atlassian Data Processing Addendum
+Effective starting: August 17, 2026
+
+This Data Processing Addendum ("DPA") supplements the Atlassian Customer Agreement. Customer is Controller (or Processor on behalf of another Controller). Atlassian is Processor of Customer Data.
+
+Processing of Personal Data
+Atlassian must Process Customer Data solely in accordance with Documented Instructions consisting of this DPA, the Agreement, Orders, and Customer's use and configurations of the Products.
+
+Security
+Atlassian has implemented appropriate technical and organizational measures designed to protect Customer Data. Security Measures may be updated provided they do not materially decrease overall security during a Subscription Term.
+
+Security Incidents
+Atlassian must notify Customer without undue delay and, where feasible, no later than seventy-two (72) hours after becoming aware of a Security Incident. Atlassian must make reasonable efforts to identify cause, mitigate effects, and remediate.
+
+Sub-processing
+Customer provides general authorisation for Sub-processors. Atlassian will provide at least thirty (30) days notice before allowing any new Sub-processor. Customer may object and terminate the affected Order as sole remedy.
+
+Deletion and Return
+Following termination, Atlassian must delete all Customer Personal Data in accordance with Documentation, except retention required by law or backup policies with confidentiality maintained.
+
+Audit
+Customer may request audit reports annually. On-site audits require sixty (60) days notice and occur no more than once every twelve (12) months.
+
+Schedule 1 — Description of Processing
+Atlassian Processes Customer Personal Data to provide and improve Products, investigate Security Incidents, resolve issues, and enforce the Acceptable Use Policy. Atlassian may de-identify and aggregate Customer Data to improve Cloud Products. Atlassian is a Controller of Personal Data as specified in Atlassian's Privacy Policy where not acting as Processor.

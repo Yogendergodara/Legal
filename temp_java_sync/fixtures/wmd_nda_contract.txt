@@ -1,0 +1,73 @@
+Non-Disclosure Agreement
+
+between
+
+WIRmachenDRUCK GmbH
+Mühlbachstraße 7
+71522 Backnang
+
+hereinafter "WmD" or "Company".
+
+and
+
+Company
+Street, number
+Zip code, city
+
+hereinafter "Partner",
+
+both together hereinafter "Parties".
+
+
+
+§ 1 Content and purpose of this Non-Disclosure Agreement
+(1) This Non-Disclosure Agreement protects the Confidential Information resulting from the Partner's ability to access Confidential Information of the Company. The Partner is aware that confidential information of the Company may become available to it through its relationship with the Company, in particular because of preliminary discussions regarding a future cooperation.
+(2) The use of the Confidential Information is only permitted within the scope and for the purpose of the activities contractually agreed between the Parties.
+
+§ 2 Definitions
+(1) "Confidential information" means economically, legally, fiscally, financially, or technically sensitive or advantageous information of the Company which becomes known to the Partner. Confidential Information may be such information which is in any way identifiable as confidential or protected by law or whose confidential content is obvious. The term includes any visual material such as documents, writings, notes, digital records, etc., as well as oral communications. Furthermore, confidential information shall be deemed to have been provided under this confidentiality agreement, as well as its contents.
+(2) "Publicly known Information" shall be such information which can be proven to have already been accessible to the Partner or its bodies, employees, and agents (hereinafter referred to as "Representatives") prior to its disclosure or to have become publicly known through no fault of theirs during the term of this Agreement. Furthermore, the term "Confidential Information" shall not include such information which the Partner has made accessible to itself, if this is evidenced by written records of such party or otherwise and no obligations set forth in this Agreement are undermined.
+(3) "Party" means both WmD and Partner, as well as their Affiliates, officers, employees, consultants and any other third parties acting on their behalf, to the extent that they are subject to the requirements of this corresponding confidentiality obligation.
+(4) "Affiliated Companies" shall mean all companies of the Parties in which the respective Party directly or indirectly holds an interest of more than 50% or whose economic management it holds.
+(5) "Employees" means employees, freelancers, and temporary employees of the respective party.
+
+§ 3 Confidentiality obligation
+(1) The Partner undertakes to treat the Confidential Information received from WmD as confidential.
+(2) This means that the Partner shall not disclose this information to third parties either itself or through employees or otherwise use it for purposes other than those contractually agreed between the Parties.
+(3) Any other use or disclosure of the Confidential Information shall only be permitted if and to the extent that WmD has given its prior written consent.
+(4) The Partner undertakes to treat the Confidential Information received from WmD with at least the same care as it applies in its own affairs.
+(5) The Partner undertakes to comply with the statutory and contractual provisions on data protection when processing the Confidential Information. This also includes technical security measures adapted to the current state of the art (Art. 32 DSGVO) and the obligation of employees to maintain data secrecy (Art. 28 para. 3 lit. b DSGVO).
+(6) The Partner shall use the Confidential Information received exclusively within the scope of its business relationship with WmD. The rights to the Confidential Information received by the Partner from WmD shall remain with WmD, unless otherwise contractually agreed.
+(7) In particular, the Partner is not permitted to make recordings or recordings in video conferences with WmD.
+
+§ 4 Exceptions to the Confidentiality obligation
+(1) This obligation to protect Confidential Information does not include such information which is publicly known.
+(2) The obligation to maintain confidentiality shall not apply to courts and authorities insofar as there is a legal obligation (including under criminal law) to disclose/issue such information or the respective information is relevant in a civil lawsuit between the parties or one of the parties and a third party. WmD shall be notified immediately of any release of Confidential Information.
+
+§ 5 Disclosure to third parties/subcontractors
+(1) The information provided, or parts thereof may only be passed on to external consultants who are bound to confidentiality or such representatives who are required for the relevant execution of the order and who have been informed of the confidentiality of the information given and have been similarly bound. The Partner expressly declares to be liable for any culpable violation by its representatives.
+(2) The Partner may use subcontractors only after written approval by WmD within the scope of the performance of the commissioned activities. The obligations resulting from this agreement shall also be imposed on them.
+
+§ 6 Contractual penalty
+(1) For each case of culpable breach of the obligations arising from this Agreement, the Partner shall pay to WmD a contractual penalty in the amount of 2,000 euros.
+(2) WmD reserves the right to assert further claims, such as for damages or injunctive relief.
+(3) The contractual penalty may be offset against the damages to be paid.
+
+§ 7 Control and deletion rights
+(1) Within fourteen (14) days after written request by WmD, the Partner shall return to WmD all available Confidential Information and further documents produced based on this information or provide WmD with comprehensible proof of the destruction of the information and documents. This shall not apply if there is an obligation to retain the information by law or by official or court order. In the latter case, further storage of the confidential information by the Partner shall only be permitted for the purpose of fulfilling these obligations.
+(2) WmD shall be entitled to monitor compliance with this Agreement to the extent necessary or to have such monitoring carried out. For this purpose, the Partner shall, after consultation, grant unhindered access and access to information-processing systems, files and information connected with the performance of the activities. The Partner shall provide WmD with all information required to fulfill the control function. Upon request, the Partner shall inform WmD which Confidential Information has been returned or destroyed and which has been retained. The notification that certain documents or information have been retained shall be justified.
+(3) Should one party become aware that Confidential Information has been disclosed in breach of this Non-Disclosure Agreement, the party shall immediately inform the other party.
+
+§ 8 Term
+This Agreement shall enter into force upon signature and shall terminate 6 (six) years after termination of the exchange of information for the aforementioned purpose. This obligation of confidentiality shall continue to apply even if the intended cooperation or any other agreement on cooperation between the parties (§ 1 sec. 1) does not materialize or is terminated, unless the development has become evident in the meantime, for which the partner shall bear the burden of proof.
+
+§ 9 Further Provisions
+(1) Should individual provisions of this confidentiality agreement be or become invalid or unenforceable in whole or in part, this shall not affect the validity of the other provisions. In such a case, the parties undertake to replace the invalid or unenforceable provision with a valid or enforceable provision that comes as close as possible to the economic and idealistic intentions of the parties.
+(2) Amendments and supplements to this Non-Disclosure Agreement, the declaration of a termination as well as the amendment of this clause must be made in writing to be effective (§ 126 sec. 1, sec. 2 BGB). The substitution of the written form by the electronic form (§§ 126 sec. 3, 126 a BGB) or the text form (§ 126 b BGB) is excluded.
+(3) The law of the Federal Republic of Germany shall apply to the exclusion of the UN Convention on Contracts for the International Sale of Goods (CISG).
+(4) The exclusive place of jurisdiction for all disputes arising from or in connection with this Agreement shall be Stuttgart. WmD may choose to bring an action against the Partner at the Partner's general place of jurisdiction.
+
+Place, Date
+
+_________________________________
+Partner

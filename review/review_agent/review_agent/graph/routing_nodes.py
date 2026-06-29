@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from document_core.schemas.chunk import IndexedChunk
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import get_settings
 from review_agent.schemas.obligation import ContractObligation
@@ -11,8 +12,9 @@ from review_agent.schemas.routing_plan import ObligationRoutingPlan
 from review_agent.services.catalog_alias_match import AliasMatchResult, match_explicit_mentions
 from review_agent.services.catalog_matcher import match_obligation_to_catalog
 from review_agent.services.catalog_registry import indexed_doc_id_set
+from review_agent.services.routing_scope import filter_catalog_entries, review_catalog_doc_ids
 from review_agent.services.routing_cache import get_catalog_snapshot
-from review_agent.services.routing_limits import reset_routing_limits
+from review_agent.services.routing_limits import catalog_search_calls, planner_calls, reset_routing_limits
 from review_agent.services.routing_tenant import obligation_routing_active
 from review_agent.services.semantic_routing_planner import _fallback_plan, plan_obligation_routing
 from review_agent.observability import metrics
@@ -59,18 +61,22 @@ async def semantic_route_node(
 
     catalog_snapshot = await get_catalog_snapshot(client, tenant_id, settings=settings)
     catalog = catalog_snapshot.entries
+    scope = review_catalog_doc_ids(state)
+    if scope:
+        catalog = filter_catalog_entries(catalog, scope)
     catalog_version = catalog_snapshot.catalog_version
     plans: dict[str, ObligationRoutingPlan] = {}
     alias_hit_count = 0
 
     for ob in obligations:
-        if ob.is_boilerplate or not (ob.text or "").strip():
+        if (ob.is_boilerplate or not (ob.text or "").strip()) and not ob.explicit_policy_mentions:
             plans[ob.obligation_id] = _skipped_plan(ob)
             continue
         alias = match_explicit_mentions(
             ob.explicit_policy_mentions,
             catalog,
             min_score=settings.routing_alias_min_score,
+            token_fallback=settings.routing_alias_token_fallback_enabled,
         )
         if alias and alias.confidence >= settings.routing_alias_min_score:
             plans[ob.obligation_id] = _plan_from_alias(ob, alias)
@@ -79,7 +85,22 @@ async def semantic_route_node(
             continue
 
     remaining = [ob for ob in obligations if ob.obligation_id not in plans]
-    if remaining and settings.semantic_planner_enabled:
+    explicit_scope = bool(
+        [str(x).strip() for x in (state.get("policy_document_ids") or []) if str(x).strip()]
+    )
+    catalog_size = len(scope) if scope else len(catalog)
+    planner_cap = settings.routing_planner_max_catalog_policies
+    defer_planner = (
+        remaining
+        and settings.semantic_planner_enabled
+        and not explicit_scope
+        and planner_cap > 0
+        and catalog_size > planner_cap
+    )
+    if defer_planner:
+        for ob in remaining:
+            plans[ob.obligation_id] = _fallback_plan(ob, settings=settings)
+    elif remaining and settings.semantic_planner_enabled:
         plans.update(
             await plan_obligation_routing(
                 remaining,
@@ -92,7 +113,7 @@ async def semantic_route_node(
         )
     elif remaining:
         for ob in remaining:
-            plans[ob.obligation_id] = _fallback_plan(ob)
+            plans[ob.obligation_id] = _fallback_plan(ob, settings=settings)
 
     ipc_count = sum(
         1
@@ -114,6 +135,7 @@ async def semantic_route_node(
             "obligation_routed_count": len(plans),
             "obligation_alias_hit_count": alias_hit_count,
             "obligation_ipc_route_count": ipc_count,
+            "routing_planner_calls": planner_calls(),
         }
     )
 
@@ -142,11 +164,29 @@ async def catalog_match_node(
     catalog_snapshot = await get_catalog_snapshot(client, tenant_id, settings=settings)
     catalog = catalog_snapshot.entries
     allowed = indexed_doc_id_set(catalog)
+    scope = review_catalog_doc_ids(state)
+    if scope:
+        catalog = filter_catalog_entries(catalog, scope)
+        allowed = allowed & scope
+    obligations_by_id = {
+        ob.obligation_id: ob
+        for ob in (
+            ContractObligation.model_validate(item) for item in (state.get("obligations") or [])
+        )
+    }
+    sections_by_id: dict[str, IndexedChunk] = {}
+    for raw in state.get("contract_sections") or []:
+        section = (
+            raw if isinstance(raw, IndexedChunk) else IndexedChunk.model_validate(raw)
+        )
+        sections_by_id[section.section_id] = section
     matches: dict[str, Any] = {}
     candidate_counts: list[int] = []
 
     for obligation_id, raw in routing_by_id.items():
         plan = ObligationRoutingPlan.model_validate(raw)
+        ob = obligations_by_id.get(obligation_id)
+        section = sections_by_id.get(ob.section_id) if ob else None
         match = await match_obligation_to_catalog(
             plan,
             client=client,
@@ -154,6 +194,8 @@ async def catalog_match_node(
             catalog_entries=catalog,
             allowed_doc_ids=allowed,
             settings=settings,
+            obligation_text=(ob.text or "") if ob else "",
+            section_title=(section.title or "") if section else "",
         )
         matches[obligation_id] = match
         candidate_counts.append(len(match.candidate_doc_ids))
@@ -171,6 +213,7 @@ async def catalog_match_node(
     stats["obligation_catalog_match_avg_candidates"] = avg_candidates
     compliance_stats = dict(state.get("compliance_stats") or {})
     compliance_stats["obligation_catalog_match_avg_candidates"] = avg_candidates
+    compliance_stats["routing_catalog_search_calls"] = catalog_search_calls()
 
     updates: dict[str, Any] = {
         "obligation_catalog_match_by_id": {

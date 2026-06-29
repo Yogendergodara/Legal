@@ -16,3 +16,10 @@ def coerce_quote_field(value: object) -> str:
             if key in value and value[key]:
                 return str(value[key]).strip()
     return str(value).strip()
+
+
+def coerce_optional_str(value: object) -> str:
+    """Coerce nullable LLM ID fields to strings (Mistral null drift)."""
+    if value is None:
+        return ""
+    return str(value).strip()

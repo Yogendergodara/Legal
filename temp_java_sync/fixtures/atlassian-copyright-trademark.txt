@@ -1,0 +1,139 @@
+Effective starting: January 18th, 2024
+
+Atlassian respects the rights of copyright and trademark holders, as described in this policy. This policy is incorporated by reference into the Atlassian Customer Agreement (the “ Agreement ”). Terms used in this policy shall have the same definitions as in the Agreement or our Acceptable Use Policy , as applicable, except where otherwise noted.
+
+Copyright
+
+Atlassian does not allow copyright infringing activities on Atlassian’s Cloud Products or websites (our “ Services ”). We will remove a party’s data or content from our Services if properly notified that such data or content infringes on another's copyright rights. Atlassian has a policy of terminating, in appropriate circumstances, the accounts of parties who repeatedly infringe copyright holders’ copyrights. Atlassian also reserves the right to terminate Your accounts suspected of infringing copyrights upon the first incident without further notice, at our sole discretion.
+
+If you believe that any content in our Services violates your copyright, you should notify Atlassian's copyright agent in writing pursuant to the Digital Millennium Copyright Act (“ DMCA ”), 17 U.S.C. § 512(c)(3). If you believe that your copyright rights have been infringed, please submit your complaint using our online form located here.
+
+If the notice complies with the requirements of the DMCA, we will promptly notify the alleged infringer that you have claimed ownership of the rights in this content and that we have complied with your takedown notice for the content, please note that we will provide your notice.
+
+Counter Notice Requirements
+
+If your content was removed because of a copyright report, you can submit a counter-notification. Atlassian will wait 10-14 days and then re-enable your content unless the copyright owner initiates a legal action against you before then. You may send a counter notice via email to copyright@atlassian.com . A counter notice must include all of the following information:
+
+Your signature, which may be provided electronically by typing your name
+
+Identify the content that was disabled and the location where it appeared. You can copy the URL(s) that you want to challenge.
+
+Include the following statement: "I swear, under penalty of perjury, that I have a good-faith belief that the material was removed or disabled as a result of a mistake or misidentification of the material to be removed or disabled."
+
+Your name, address, telephone number, and email address.
+
+Include the following statement: "I consent to the jurisdiction of Federal District Court for the judicial district in which my address is located, or if your address is located outside the United States, for any judicial district in which Atlissian is located, and that I will accept service of process from the person who provided the DMCA notification or an agent of such person."
+
+Trademark
+
+If you believe that your trademark rights have been infringed, you can submit a trademark infringement report to Atlassian. Trademark owners should make an effort to directly contact an offending third party before submitting a report to Atlassian. Please note that Atlassian is not in a position to adjudicate complicated trademark disputes between third parties. Therefore, we are not in a position to act on reports that require a complex legal analysis or factual investigation. In those instances, we encourage you to contact the third party directly to try and resolve the matter. In fact, you should consider doing so even before filing a report with us, as it is often more effective in resolving the dispute.
+
+Once you submit the report to Atlassian, our team will begin a brief investigation and will take action that it deems appropriate under the circumstances. If more information is needed from you, we will reach out via e-mail.
+
+If we decide to take down content in response to your report, please note that we will provide your report and contact information to the affected party, who may contact you directly regarding the matter.
+
+Please note that Atlassian reserves the right to reclaim usernames on behalf of businesses or individuals that hold legal claim or trademark on those usernames. Accounts using business names or logos to mislead others may be permanently suspended.
+
+To proceed with your trademark infringement report, please click here.
+
+Related content
+
+Impressum
+
+Learn more
+
+Trademark Guidelines
+
+Learn more
+
+Training Terms and Policies
+
+Learn more
+
+Third Party Code Policy
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

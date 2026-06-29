@@ -35,6 +35,7 @@ _PATH_TIMEOUTS: dict[str, float] = {
     "/health": 5.0,
     "/tools/ingest_document": 120.0,
     "/tools/index_policy": 120.0,
+    "/tools/sync_policies": 900.0,
     "/tools/search_policy": 30.0,
     "/tools/search_policy_by_categories": 30.0,
     "/tools/search_policy_catalog": 30.0,
@@ -75,11 +76,21 @@ class DocumentMCPClient:
         self._ingest_timeout = ingest_timeout_seconds if ingest_timeout_seconds is not None else 120.0
         self._search_timeout = search_timeout_seconds if search_timeout_seconds is not None else 30.0
         self._owns_client = http_client is None
-        self._client = http_client or httpx.AsyncClient(
-            base_url=self.base_url,
-            timeout=httpx.Timeout(timeout_seconds),
-            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50),
-        )
+        if http_client is None:
+            from review_agent.config import get_settings
+
+            cfg = get_settings()
+            limits = httpx.Limits(
+                max_keepalive_connections=cfg.mcp_http_max_keepalive_connections,
+                max_connections=cfg.mcp_http_max_connections,
+            )
+            self._client = httpx.AsyncClient(
+                base_url=self.base_url,
+                timeout=httpx.Timeout(timeout_seconds),
+                limits=limits,
+            )
+        else:
+            self._client = http_client
         self._injected_client = None if self._owns_client else self._client
 
     @classmethod
@@ -106,6 +117,7 @@ class DocumentMCPClient:
                 return self._search_timeout
             if mapped == 120.0:
                 return self._ingest_timeout
+            return mapped
         return self.timeout_seconds
 
     def _request_url(self, path: str) -> str:
@@ -387,3 +399,14 @@ class DocumentMCPClient:
             payload["index_status"] = index_status
         data = await self._post("/tools/list_policy_registry", payload)
         return ListPolicyRegistryResponse.model_validate(data)
+
+    async def sync_policies(self, request) -> Any:
+        from document_core.schemas.policy_sync import SyncPoliciesRequest, SyncPoliciesResponse
+
+        payload = (
+            request
+            if isinstance(request, SyncPoliciesRequest)
+            else SyncPoliciesRequest.model_validate(request)
+        )
+        data = await self._post("/tools/sync_policies", payload.model_dump(mode="json"))
+        return SyncPoliciesResponse.model_validate(data)

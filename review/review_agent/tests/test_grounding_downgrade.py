@@ -53,6 +53,7 @@ async def test_grounding_downgrades_instead_of_drop(monkeypatch):
         "review_agent.graph.nodes.get_settings",
         lambda: ReviewSettings(
             grounding_downgrade_not_drop=True,
+            grounding_downgrade_mode="inconclusive",
             grounding_rerun_coverage=False,
             quote_repair_enabled=False,
             guard_pass_enabled=False,
@@ -87,6 +88,46 @@ async def test_grounding_downgrades_instead_of_drop(monkeypatch):
     assert grounded[0].metadata.get("grounding_failed") is True
     assert grounded[0].metadata.get("prior_status") == ComplianceStatus.NON_COMPLIANT.value
     assert grounded[0].contract_quote == ""
+
+
+@pytest.mark.asyncio
+async def test_grounding_keep_status_flag_default(monkeypatch):
+    monkeypatch.setattr(
+        "review_agent.graph.nodes.get_settings",
+        lambda: ReviewSettings(
+            grounding_rerun_coverage=False,
+            quote_repair_enabled=False,
+            guard_pass_enabled=False,
+        ),
+    )
+    client = MagicMock()
+    client.verify_quote = AsyncMock(
+        return_value=GroundingCheckResult(
+            grounded=False,
+            quote="bad quote not in doc",
+            normalized_quote="bad quote not in doc",
+        )
+    )
+    client.verify_policy_quote = AsyncMock(
+        return_value=GroundingCheckResult(
+            grounded=True,
+            quote="policy quote",
+            normalized_quote="policy quote",
+        )
+    )
+
+    state = {
+        "tenant_id": "demo",
+        "ingest_result": _ingest_result(),
+        "findings": [_finding()],
+        "indexed_policies": [],
+    }
+    result = await grounding_node(state, client)
+    grounded = result["grounded_findings"]
+    assert len(grounded) == 1
+    assert grounded[0].status == ComplianceStatus.NON_COMPLIANT
+    assert grounded[0].metadata.get("grounding_failed") is True
+    assert grounded[0].grounded is False
 
 
 @pytest.mark.asyncio

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,7 @@ async def sync_policies(
     *,
     tenant_id: str | None = None,
     tenant_shared: bool = True,
-    replace: bool = True,
+    replace: bool = False,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "policies": policies,
@@ -42,6 +43,7 @@ async def review_text(
     query: str = "Review this contract against our policies",
     tenant_id: str | None = None,
     use_platform: bool = False,
+    policy_document_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "query": query,
@@ -52,6 +54,8 @@ async def review_text(
     }
     if tenant_id:
         body["tenant_id"] = tenant_id
+    if policy_document_ids:
+        body["policy_document_ids"] = policy_document_ids
     response = await http.post(f"{DEV_UI_BASE}/api/review-text", json=body)
     response.raise_for_status()
     return response.json()
@@ -86,10 +90,23 @@ def contract_fixture_to_text(contract: dict[str, Any]) -> str:
     return str(contract.get("contract_text") or contract.get("text") or "").strip()
 
 
+def _sync_path_for_review(review_path: Path) -> Path | None:
+    if not review_path.is_file():
+        return None
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    tenant = str(review.get("tenant_id") or "").strip()
+    if tenant:
+        tenant_sync = OUTPUTS / f"sync_{tenant}.json"
+        if tenant_sync.is_file():
+            return tenant_sync
+    fallback = OUTPUTS / "sync_result.json"
+    return fallback if fallback.is_file() else None
+
+
 def export_named_assessment(slug: str) -> Path:
-    sync_path = OUTPUTS / "sync_result.json"
+    review_path = OUTPUTS / "review_result.json"
     return export_assessment(
-        OUTPUTS / "review_result.json",
-        sync_path=sync_path if sync_path.is_file() else None,
+        review_path,
+        sync_path=_sync_path_for_review(review_path),
         out_path=OUTPUTS / f"{slug}_assessment.json",
     )

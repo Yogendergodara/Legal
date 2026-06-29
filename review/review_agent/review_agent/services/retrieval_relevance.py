@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import re
+from typing import Any, Literal
 
 from document_core.schemas.chunk import RetrievalHit
 from document_core.schemas.taxonomy import BROAD_POLICY_CATEGORIES, normalize_categories
+from review_agent.config import ReviewSettings
 from review_agent.services.section_gap_status import normalize_section_title
 
 # Ingest cap treats security as broad; relevance keeps security as a match signal for security sections.
@@ -29,6 +31,14 @@ _INCOMPATIBLE_SECTION_CATEGORIES: tuple[tuple[frozenset[str], frozenset[str]], .
 )
 
 _NOTICE_TITLE = re.compile(r"^(notices?|notice provisions?)\b", re.IGNORECASE)
+_PREAMBLE_SECTION_IDS = frozenset({"preamble", "preface", "introduction"})
+
+
+def _is_preamble_hit(hit: RetrievalHit) -> bool:
+    section_id = (hit.parent_chunk.section_id or "").lower().strip()
+    if section_id in _PREAMBLE_SECTION_IDS:
+        return True
+    return section_id.startswith("preamble")
 
 
 def _hit_categories(hit: RetrievalHit) -> list[str]:
@@ -135,6 +145,13 @@ def score_hit_relevance(
             score += 0.4
         elif shared == 1:
             score += 0.2
+    if not section_specific:
+        from review_agent.config import get_settings
+
+        if get_settings().retrieval_penalize_preamble_general and _is_preamble_hit(hit):
+            shared = len(title_tokens & section_tokens) if title_tokens and section_tokens else 0
+            if shared < 1:
+                score = min(score, 0.25)
     return score
 
 
@@ -172,6 +189,7 @@ def filter_on_topic_hits(
     doc_catalog_categories: dict[str, list[str]] | None = None,
     keep_best_fallback: bool = False,
     require_specific_overlap: bool = True,
+    fallback_on_overlap_miss: bool = False,
 ) -> tuple[list[RetrievalHit], list[RetrievalHit], str]:
     """Return (relevant_hits, dropped_hits, block_reason). block_reason empty when relevant non-empty."""
     if not hits:
@@ -226,8 +244,12 @@ def filter_on_topic_hits(
             )
         ]
         if scored and not overlap_scored:
-            return [], list(hits), "no_specific_category_overlap"
-        scored = overlap_scored
+            if keep_best_fallback and fallback_on_overlap_miss:
+                scored = []
+            else:
+                return [], list(hits), "no_specific_category_overlap"
+        else:
+            scored = overlap_scored
 
     if not scored:
         if keep_best_fallback:
@@ -276,6 +298,7 @@ def filter_hits_by_relevance(
     keep_best_fallback: bool = False,
     doc_catalog_categories: dict[str, list[str]] | None = None,
     require_specific_overlap: bool = False,
+    fallback_on_overlap_miss: bool = False,
 ) -> tuple[list[RetrievalHit], list[RetrievalHit]]:
     """Return (relevant_hits, dropped_hits)."""
     relevant, dropped, _reason = filter_on_topic_hits(
@@ -286,5 +309,29 @@ def filter_hits_by_relevance(
         doc_catalog_categories=doc_catalog_categories,
         keep_best_fallback=keep_best_fallback,
         require_specific_overlap=require_specific_overlap,
+        fallback_on_overlap_miss=fallback_on_overlap_miss,
     )
     return relevant, dropped
+
+
+def relevance_filter_kwargs(
+    cfg: ReviewSettings,
+    *,
+    stage: Literal["retrieval", "coverage"],
+) -> dict[str, Any]:
+    """Shared relevance filter params — single overlap source (Phase DF-1)."""
+    overlap = cfg.policy_coverage_require_specific_overlap
+    if stage == "retrieval":
+        return {
+            "min_score": cfg.retrieval_relevance_min_score,
+            "keep_best_fallback": cfg.retrieval_relevance_keep_best_fallback,
+            "require_specific_overlap": overlap,
+        }
+    return {
+        "min_score": max(
+            cfg.retrieval_relevance_min_score,
+            cfg.compare_hit_min_relevance_score,
+        ),
+        "keep_best_fallback": cfg.retrieval_relevance_keep_best_fallback,
+        "require_specific_overlap": overlap,
+    }

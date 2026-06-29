@@ -30,8 +30,28 @@ def test_invalid_quotes_downgraded():
         result,
         contract_text="Contract limits liability to fees paid.",
         policy_text="Policy limits liability to twelve months fees.",
+        preserve_non_compliant_on_quote_fail=False,
     )
     assert normalized.status == ComplianceStatus.INCONCLUSIVE
+
+
+def test_nc_preserved_when_quote_fail_and_preserve_flag():
+    result = ComplianceLLMResult(
+        status=ComplianceStatus.NON_COMPLIANT,
+        severity=Severity.CRITICAL,
+        contract_quote="not in text",
+        policy_quote="also missing",
+        rationale="Mismatch on liability cap requirements in the agreement.",
+        confidence=0.9,
+    )
+    normalized = validate_and_normalize_quotes(
+        result,
+        contract_text="Contract limits liability to fees paid.",
+        policy_text="Policy limits liability to twelve months fees.",
+        preserve_non_compliant_on_quote_fail=True,
+    )
+    assert normalized.status == ComplianceStatus.NON_COMPLIANT
+    assert "status preserved" in normalized.rationale
 
 
 def test_anchor_paraphrased_quote_finds_verbatim_span():
@@ -147,5 +167,6 @@ def test_nc_still_downgraded_when_policy_quote_invalid() -> None:
         result,
         contract_text=contract_text,
         policy_text=policy_text,
+        preserve_non_compliant_on_quote_fail=False,
     )
     assert normalized.status == ComplianceStatus.INCONCLUSIVE

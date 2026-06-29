@@ -228,6 +228,8 @@ def build_review_artifact(
     *,
     findings: list[ComplianceFinding] | None = None,
     settings: ReviewSettings | None = None,
+    engine_diagnosis: dict[str, Any] | None = None,
+    compliance_stats: dict[str, Any] | None = None,
 ) -> ReviewArtifact:
     """Pure function — assemble audit JSON from existing pipeline state."""
     cfg = settings or get_settings()
@@ -250,7 +252,7 @@ def build_review_artifact(
 
     superseded_finding_ids = list(state.get("superseded_finding_ids") or [])
     failed_sections = list(state.get("failed_sections") or [])
-    compliance_stats = dict(state.get("compliance_stats") or {})
+    stats = compliance_stats if compliance_stats is not None else dict(state.get("compliance_stats") or {})
     final_verify_stats = dict(state.get("final_verify_stats") or {})
     section_coverage = dict(state.get("section_coverage") or {})
 
@@ -294,10 +296,11 @@ def build_review_artifact(
         superseded_finding_ids=superseded_finding_ids,
         final_verify_stats=final_verify_stats,
         section_coverage=section_coverage,
-        compliance_stats=compliance_stats,
+        compliance_stats=stats,
+        engine_diagnosis=dict(engine_diagnosis or stats.get("engine_diagnosis") or {}),
         degraded_sections=failed_sections,
         ops=_build_ops(
-            compliance_stats=compliance_stats,
+            compliance_stats=stats,
             final_verify_stats=final_verify_stats,
             section_coverage=section_coverage,
             superseded_finding_ids=superseded_finding_ids,

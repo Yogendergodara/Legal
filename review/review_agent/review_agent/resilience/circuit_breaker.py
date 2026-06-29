@@ -8,8 +8,13 @@ from __future__ import annotations
 
 import logging
 import time
+from contextvars import ContextVar
 
 logger = logging.getLogger(__name__)
+
+_open_events: ContextVar[int] = ContextVar("breaker_open_events", default=0)
+_llm_open_events: ContextVar[int] = ContextVar("breaker_open_events_llm", default=0)
+_mcp_open_events: ContextVar[int] = ContextVar("breaker_open_events_mcp", default=0)
 
 
 class CircuitBreaker:
@@ -78,12 +83,15 @@ class CircuitBreaker:
             # probe failed — re-open immediately
             self._state = self.OPEN
             self._opened_at = time.monotonic()
+            self._record_open()
             logger.warning(
                 "circuit_breaker:%s → OPEN (half-open probe failed, count=%s)",
                 self.name,
                 self._failure_count,
             )
         elif self._failure_count >= self.failure_threshold:
+            if self._state != self.OPEN:
+                self._record_open()
             self._state = self.OPEN
             self._opened_at = time.monotonic()
             logger.warning(
@@ -91,6 +99,13 @@ class CircuitBreaker:
                 self.name,
                 self.failure_threshold,
             )
+
+    def _record_open(self) -> None:
+        _open_events.set(_open_events.get() + 1)
+        if self.name == "llm":
+            _llm_open_events.set(_llm_open_events.get() + 1)
+        elif self.name == "mcp":
+            _mcp_open_events.set(_mcp_open_events.get() + 1)
 
     def reset(self) -> None:
         """Force-reset to CLOSED (tests / settings reload)."""
@@ -104,7 +119,25 @@ class CircuitBreaker:
 # ---------------------------------------------------------------------------
 
 _mcp_breaker = CircuitBreaker("mcp", failure_threshold=5, reset_timeout=60.0)
-_llm_breaker = CircuitBreaker("llm", failure_threshold=5, reset_timeout=60.0)
+_llm_breaker = CircuitBreaker("llm", failure_threshold=15, reset_timeout=60.0)
+
+
+def reset_breaker_open_events() -> None:
+    _open_events.set(0)
+    _llm_open_events.set(0)
+    _mcp_open_events.set(0)
+
+
+def breaker_open_events() -> int:
+    return _open_events.get()
+
+
+def breaker_open_events_llm() -> int:
+    return _llm_open_events.get()
+
+
+def breaker_open_events_mcp() -> int:
+    return _mcp_open_events.get()
 
 
 def get_mcp_breaker() -> CircuitBreaker:
@@ -119,3 +152,4 @@ def reset_all_breakers() -> None:
     """Reset both breakers (tests / settings reload)."""
     _mcp_breaker.reset()
     _llm_breaker.reset()
+    reset_breaker_open_events()

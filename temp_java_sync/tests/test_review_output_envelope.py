@@ -85,3 +85,21 @@ def test_finding_count_consistent():
     report = _report()
     data = build_review_output_envelope(report=report, state={})
     assert data["finding_count"] == len(data["findings"])
+
+
+def test_envelope_engine_diagnosis_mirror():
+    report = _report()
+    diagnosis = {
+        "schema_version": "1.0",
+        "pipeline_mode": "section_first",
+        "ipc_summary": {"section_ipc_pct": 0.0},
+    }
+    report.metadata["engine_diagnosis"] = diagnosis
+    report.metadata["artifact"] = {
+        **report.metadata.get("artifact", {}),
+        "engine_diagnosis": diagnosis,
+    }
+    data = build_review_output_envelope(report=report, state={})
+    assert data["engine_diagnosis"] == diagnosis
+    assert data["artifacts"]["report"]["metadata"]["engine_diagnosis"] == diagnosis
+    assert data["artifact"]["engine_diagnosis"] == diagnosis

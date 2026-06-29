@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from document_core.schemas.compliance import ComplianceStatus, Severity
 from review_agent.schemas.compliance_status_utils import normalize_compliance_status
-from review_agent.schemas.quote_field_utils import coerce_quote_field
+from review_agent.schemas.quote_field_utils import coerce_optional_str, coerce_quote_field
 
 
 class ObligationCompareItem(BaseModel):
@@ -31,6 +31,17 @@ class ObligationCompareItem(BaseModel):
     @classmethod
     def coerce_quotes(cls, value: object) -> str:
         return coerce_quote_field(value)
+
+    @field_validator(
+        "policy_document_id",
+        "policy_section_id",
+        "obligation_id",
+        "section_id",
+        mode="before",
+    )
+    @classmethod
+    def coerce_ids(cls, value: object) -> str:
+        return coerce_optional_str(value)
 
 
 class BatchObligationCompareLLMResult(BaseModel):

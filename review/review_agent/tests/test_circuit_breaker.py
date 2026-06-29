@@ -15,6 +15,9 @@ from review_agent.errors import (
 )
 from review_agent.resilience.circuit_breaker import (
     CircuitBreaker,
+    breaker_open_events,
+    breaker_open_events_llm,
+    breaker_open_events_mcp,
     get_llm_breaker,
     get_mcp_breaker,
     reset_all_breakers,
@@ -145,7 +148,8 @@ class TestSingletons:
     def test_reset_all_breakers(self):
         mcp = get_mcp_breaker()
         llm = get_llm_breaker()
-        for _ in range(10):
+        trips = max(mcp.failure_threshold, llm.failure_threshold)
+        for _ in range(trips):
             mcp.record_failure()
             llm.record_failure()
         assert mcp.state == CircuitBreaker.OPEN
@@ -153,6 +157,16 @@ class TestSingletons:
         reset_all_breakers()
         assert mcp.state == CircuitBreaker.CLOSED
         assert llm.state == CircuitBreaker.CLOSED
+        assert breaker_open_events() == 0
+
+    def test_open_events_counted_per_breaker(self):
+        reset_all_breakers()
+        mcp = get_mcp_breaker()
+        for _ in range(mcp.failure_threshold):
+            mcp.record_failure()
+        assert breaker_open_events() == 1
+        assert breaker_open_events_mcp() == 1
+        assert breaker_open_events_llm() == 0
 
 
 # ---------------------------------------------------------------------------

@@ -19,9 +19,15 @@ from review_agent.schemas.section_compare import (
 )
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
 from review_agent.services.multi_retrieval import multi_retrieve_for_section
+from review_agent.services.async_limits import gather_limited
 from review_agent.services.policy_coverage import apply_coverage_gate
 from review_agent.services.quote_validate import truncate_section, validate_gap_item_quotes
 from review_agent.services.section_compare_llm import compare_section_batch
+from review_agent.services.config_advisory import effective_unclear_recompare_max_sections
+from review_agent.services.token_budget import (
+    effective_compare_max_tokens,
+    split_batch_by_token_budget,
+)
 from review_agent.services.conflict_resolve import (
     emit_skipped_conflict_recompare,
     emit_unresolved_policy_conflict,
@@ -29,6 +35,7 @@ from review_agent.services.conflict_resolve import (
 from review_agent.services.section_merge import section_items_to_findings
 from review_agent.services.section_gap_status import upgrade_substantive_gap_finding
 from review_agent.services.unclear_recompare import (
+    classify_unclear_finding,
     eligible_for_unclear_recompare,
     section_has_grounded_non_compliant,
 )
@@ -272,6 +279,43 @@ def _lowest_confidence_by_section(
     return scores
 
 
+def _categories_by_section(
+    sections: list[IndexedChunk],
+    bundles: dict[str, SectionRetrievalBundle],
+) -> dict[str, list[str]]:
+    return {
+        s.section_id: list(bundles[s.section_id].categories) if bundles.get(s.section_id) else []
+        for s in sections
+    }
+
+
+def _split_sections_for_compare(
+    sections: list[IndexedChunk],
+    hits_map: dict[str, list],
+    bundles: dict[str, SectionRetrievalBundle],
+    cfg: ReviewSettings,
+    *,
+    extra_context_by_section: dict[str, str] | None = None,
+) -> list[tuple[list[IndexedChunk], dict[str, list]]]:
+    """Token-aware compare batches with per-batch hit maps (Phase D)."""
+    if not sections:
+        return []
+    categories = _categories_by_section(sections, bundles)
+    batches = split_batch_by_token_budget(
+        sections,
+        batch_size=cfg.section_compare_batch_size,
+        max_tokens=effective_compare_max_tokens(cfg.section_compare_max_tokens, cfg),
+        bundles=hits_map,
+        settings=cfg,
+        categories_by_section=categories,
+        extra_context_by_section=extra_context_by_section,
+    )
+    return [
+        (batch, {s.section_id: hits_map.get(s.section_id, []) for s in batch})
+        for batch in batches
+    ]
+
+
 async def _compare_sections_gated(
     sections: list[IndexedChunk],
     hits_map: dict[str, list],
@@ -292,11 +336,13 @@ async def _compare_sections_gated(
     warnings: list[str] = []
     working_hits = dict(hits_map)
     if settings.policy_coverage_enabled:
+        # Re-retrieved hits: full coverage filter (no retrieval_gate_applied meta).
         working_hits, ipc_items, cov_warnings = apply_coverage_gate(
             sections,
             working_hits,
             categories_by_section,
             settings=settings,
+            retrieval_gate_applied_by_section={},
         )
         warnings.extend(cov_warnings)
     compare_sections = [s for s in sections if working_hits.get(s.section_id)]
@@ -366,6 +412,8 @@ async def run_final_gap_verify(
         "gap_sections": len(gap_section_ids),
         "unclear_findings": len(unclear_ids),
         "unclear_recompare_eligible": 0,
+        "unclear_recompare_gap_routed": 0,
+        "unclear_recompare_ineligible": 0,
         "unclear_recompare_skipped": 0,
         "unclear_recompare_capped": 0,
         "conflict_pairs": len(pairs),
@@ -377,6 +425,11 @@ async def run_final_gap_verify(
         "conflicts_recompared": 0,
         "conflicts_unresolved": 0,
         "compare_omitted_recovered": 0,
+        "gap_recompare_batches": 0,
+        "conflict_recompare_batches": 0,
+        "coverage_gate_recompare_candidates": 0,
+        "coverage_gate_recompare_attempted": 0,
+        "coverage_gate_recompare_resolved": 0,
     }
 
     recompare_finding_ids = _resolve_recompare_finding_ids(
@@ -385,17 +438,31 @@ async def run_final_gap_verify(
         findings_map,
     )
     stats["unclear_recompare_eligible"] = len(recompare_finding_ids)
+    for fid in unclear_ids:
+        finding = findings_map.get(fid)
+        if finding is None:
+            continue
+        reason = classify_unclear_finding(finding)
+        if reason == "gap_context":
+            stats["unclear_recompare_gap_routed"] += 1
+        elif not eligible_for_unclear_recompare(finding):
+            stats["unclear_recompare_ineligible"] += 1
 
-    # Phase 1: re-retrieve sections with no policy hits
+    # Phase 1: re-retrieve sections with no policy hits (parallel, PF-1B-4)
+    retrieve_targets: list[tuple[str, IndexedChunk]] = []
     for section_id in no_policy_ids:
         section = sections_by_id.get(section_id)
         if section is None:
             continue
-
         bundle = bundles.get(section_id)
         if bundle and bundle.policy_hits:
             continue
+        retrieve_targets.append((section_id, section))
 
+    async def _re_retrieve_section(
+        section_id: str,
+        section: IndexedChunk,
+    ) -> tuple[str, SectionRetrievalBundle | None, str | None]:
         try:
             refreshed = await multi_retrieve_for_section(
                 client,
@@ -405,33 +472,75 @@ async def run_final_gap_verify(
                 policy_type=policy_type,
                 settings=recall_settings,
             )
+            return section_id, refreshed, None
         except Exception as exc:  # noqa: BLE001
-            warnings.append(f"final gap re-retrieve failed for {section_id}: {exc}")
-            continue
+            return section_id, None, str(exc)
 
-        stats["re_retrieved"] += 1
-        bundles[section_id] = refreshed
-
-        if not refreshed.policy_hits:
-            continue
-
-        stats["resolved_with_policy"] += 1
-        hits_map = {section_id: list(refreshed.policy_hits)}
-        items, ipc_items, item_warnings = await _compare_sections_gated(
-            [section],
-            hits_map,
-            bundles,
-            contract_type=contract_type,
-            memory_context=memory_context,
-            settings=cfg,
+    if retrieve_targets:
+        retrieve_results = await gather_limited(
+            [_re_retrieve_section(section_id, section) for section_id, section in retrieve_targets],
+            limit=cfg.section_retrieval_concurrency,
         )
-        warnings.extend(item_warnings)
-        all_items = list(ipc_items) + list(items)
-        phase_findings = section_items_to_findings(all_items, pipeline="section_first_final")
-        new_findings.extend(phase_findings)
-        superseded_ids.extend(
-            _finding_ids_for_section(existing, section_id, gap_types=gap_supersede_types)
-        )
+        recompare_after_retrieve: list[str] = []
+        for item in retrieve_results:
+            if isinstance(item, BaseException):
+                continue
+            section_id, refreshed, err = item
+            if err:
+                warnings.append(f"final gap re-retrieve failed for {section_id}: {err}")
+                continue
+            if refreshed is None:
+                continue
+
+            stats["re_retrieved"] += 1
+            bundles[section_id] = refreshed
+
+            if not refreshed.policy_hits:
+                continue
+
+            stats["resolved_with_policy"] += 1
+            recompare_after_retrieve.append(section_id)
+
+        if recompare_after_retrieve:
+            batch_sections_list = [
+                sections_by_id[sid] for sid in recompare_after_retrieve if sid in sections_by_id
+            ]
+            hits_full = {
+                sid: list(bundles[sid].policy_hits)
+                for sid in recompare_after_retrieve
+                if bundles.get(sid) and bundles[sid].policy_hits
+            }
+            token_batches = _split_sections_for_compare(
+                batch_sections_list,
+                hits_full,
+                bundles,
+                cfg,
+            )
+            stats["gap_recompare_batches"] += len(token_batches)
+            for batch_sections, hits_map in token_batches:
+                if not hits_map:
+                    continue
+                batch_sids = [s.section_id for s in batch_sections]
+                items, ipc_items, item_warnings = await _compare_sections_gated(
+                    batch_sections,
+                    hits_map,
+                    bundles,
+                    contract_type=contract_type,
+                    memory_context=memory_context,
+                    settings=cfg,
+                )
+                warnings.extend(item_warnings)
+                all_items = list(ipc_items) + list(items)
+                phase_findings = section_items_to_findings(
+                    all_items, pipeline="section_first_final"
+                )
+                new_findings.extend(phase_findings)
+                for sid in batch_sids:
+                    superseded_ids.extend(
+                        _finding_ids_for_section(
+                            existing, sid, gap_types=gap_supersede_types
+                        )
+                    )
 
     resolved_gap_ids = {f.contract_section_id for f in new_findings if f.contract_section_id}
     if resolved_gap_ids:
@@ -449,17 +558,22 @@ async def run_final_gap_verify(
         and bundles[sid].policy_hits
     ]
     if compare_omitted_to_run:
-        batch_size = max(1, cfg.section_compare_batch_size)
-        for start in range(0, len(compare_omitted_to_run), batch_size):
-            batch_sids = compare_omitted_to_run[start : start + batch_size]
-            batch_sections = [sections_by_id[sid] for sid in batch_sids]
-            hits_map = {
-                sid: list(bundles[sid].policy_hits)
-                for sid in batch_sids
-                if bundles.get(sid) and bundles[sid].policy_hits
-            }
+        batch_sections_list = [sections_by_id[sid] for sid in compare_omitted_to_run]
+        hits_full = {
+            sid: list(bundles[sid].policy_hits)
+            for sid in compare_omitted_to_run
+            if bundles.get(sid) and bundles[sid].policy_hits
+        }
+        token_batches = _split_sections_for_compare(
+            batch_sections_list,
+            hits_full,
+            bundles,
+            cfg,
+        )
+        for batch_sections, hits_map in token_batches:
             if not hits_map:
                 continue
+            batch_sids = [s.section_id for s in batch_sections]
             items, ipc_items, item_warnings = await _compare_sections_gated(
                 batch_sections,
                 hits_map,
@@ -529,18 +643,22 @@ async def run_final_gap_verify(
         if f.metadata.get("final_verify") == "gap_llm" and f.contract_section_id
     }
 
-    # Phase 3: unclear re-compare (low-confidence playbook compare only, capped + batched)
+    # Phase 3: unclear re-compare (eligible playbook rows, capped + batched)
     recompare_finding_id_set = set(recompare_finding_ids)
     unclear_sections: dict[str, IndexedChunk] = {}
     unclear_supersede: dict[str, list[str]] = {}
     if cfg.final_verify_unclear_recompare_enabled and recompare_finding_ids:
         conf_by_section = _lowest_confidence_by_section(recompare_finding_ids, findings_map)
         candidate_section_ids: list[str] = []
+        coverage_gate_by_section: dict[str, bool] = {}
         for fid in recompare_finding_ids:
             finding = findings_map.get(fid)
             if finding is None or not finding.contract_section_id:
                 continue
             sid = finding.contract_section_id
+            is_coverage_gate = classify_unclear_finding(finding) == "coverage_gate_ipc"
+            if is_coverage_gate:
+                stats["coverage_gate_recompare_candidates"] += 1
             if sid in gap_llm_section_ids:
                 continue
             bundle = bundles.get(sid)
@@ -555,13 +673,24 @@ async def run_final_gap_verify(
             if sid not in unclear_sections:
                 unclear_sections[sid] = section
                 candidate_section_ids.append(sid)
+            if is_coverage_gate:
+                coverage_gate_by_section[sid] = True
             unclear_supersede.setdefault(sid, [])
             if fid not in unclear_supersede[sid]:
                 unclear_supersede[sid].append(fid)
 
         candidate_section_ids.sort(key=lambda sid: conf_by_section.get(sid, 1.0))
-        max_sections = max(0, cfg.final_verify_unclear_recompare_max_sections)
+        reviewable_count = len(sections_by_id)
+        max_sections = effective_unclear_recompare_max_sections(
+            cfg,
+            reviewable_sections=reviewable_count,
+        )
+        stats["unclear_recompare_cap_effective"] = max_sections
+        stats["unclear_recompare_cap_mode"] = cfg.final_verify_unclear_recompare_cap_mode
         sections_to_recompare = candidate_section_ids[:max_sections]
+        for sid in sections_to_recompare:
+            if coverage_gate_by_section.get(sid):
+                stats["coverage_gate_recompare_attempted"] += 1
         if len(candidate_section_ids) > max_sections:
             stats["unclear_recompare_capped"] = len(candidate_section_ids) - max_sections
             warnings.append(
@@ -569,17 +698,22 @@ async def run_final_gap_verify(
                 f"({len(candidate_section_ids)} eligible)."
             )
 
-        batch_size = max(1, cfg.section_compare_batch_size)
-        for start in range(0, len(sections_to_recompare), batch_size):
-            batch_sids = sections_to_recompare[start : start + batch_size]
-            batch_sections = [unclear_sections[sid] for sid in batch_sids]
-            hits_map = {
-                sid: list(bundles[sid].policy_hits)
-                for sid in batch_sids
-                if bundles.get(sid) and bundles[sid].policy_hits
-            }
+        batch_sections_list = [unclear_sections[sid] for sid in sections_to_recompare]
+        hits_full = {
+            sid: list(bundles[sid].policy_hits)
+            for sid in sections_to_recompare
+            if bundles.get(sid) and bundles[sid].policy_hits
+        }
+        token_batches = _split_sections_for_compare(
+            batch_sections_list,
+            hits_full,
+            bundles,
+            cfg,
+        )
+        for batch_sections, hits_map in token_batches:
             if not hits_map:
                 continue
+            batch_sids = [s.section_id for s in batch_sections]
             items, item_warnings = await compare_section_batch(
                 batch_sections,
                 hits_map,
@@ -590,6 +724,15 @@ async def run_final_gap_verify(
             warnings.extend(item_warnings)
             if items:
                 stats["unclear_recompared"] += len(batch_sids)
+                for sid in batch_sids:
+                    if not coverage_gate_by_section.get(sid):
+                        continue
+                    section_items = [it for it in items if it.section_id == sid]
+                    if any(
+                        it.status != ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
+                        for it in section_items
+                    ):
+                        stats["coverage_gate_recompare_resolved"] += 1
                 new_findings.extend(
                     section_items_to_findings(items, pipeline="section_first_final")
                 )
@@ -602,8 +745,6 @@ async def run_final_gap_verify(
     elif recompare_finding_ids and not cfg.final_verify_unclear_recompare_enabled:
         stats["unclear_recompare_skipped"] = len(recompare_finding_ids)
         warnings.append("unclear re-compare disabled by config.")
-    elif unclear_ids and not recompare_finding_ids:
-        stats["unclear_recompare_skipped"] = len(unclear_ids)
 
     # Phase 4: conflict re-compare
     conflict_context = _conflict_context_by_section(pairs, findings_map)
@@ -617,7 +758,8 @@ async def run_final_gap_verify(
                 if fid not in conflict_supersede[sid]:
                     conflict_supersede[sid].append(fid)
 
-    for sid, extra_context in conflict_context.items():
+    conflict_sids_to_run: list[str] = []
+    for sid in conflict_context:
         section = sections_by_id.get(sid)
         bundle = bundles.get(sid)
         prior_for_section = [
@@ -633,28 +775,63 @@ async def run_final_gap_verify(
                 stats["conflicts_unresolved"] += 1
                 superseded_ids.extend(conflict_supersede.get(sid, []))
             continue
-        hits_map = {sid: list(bundle.policy_hits)}
-        items, item_warnings = await compare_section_batch(
-            [section],
-            hits_map,
-            contract_type=contract_type,
-            memory_context=memory_context,
-            extra_user_context=extra_context,
-            settings=cfg,
+        conflict_sids_to_run.append(sid)
+
+    if conflict_sids_to_run:
+        batch_sections_list = [sections_by_id[sid] for sid in conflict_sids_to_run]
+        hits_full = {
+            sid: list(bundles[sid].policy_hits)
+            for sid in conflict_sids_to_run
+            if bundles.get(sid) and bundles[sid].policy_hits
+        }
+        ctx_full = {sid: conflict_context[sid] for sid in conflict_sids_to_run}
+        token_batches = _split_sections_for_compare(
+            batch_sections_list,
+            hits_full,
+            bundles,
+            cfg,
+            extra_context_by_section=ctx_full,
         )
-        warnings.extend(item_warnings)
-        if items:
-            stats["conflicts_recompared"] += 1
-            new_from_items = section_items_to_findings(items, pipeline="section_first_final")
-            conflict_row = emit_unresolved_policy_conflict(
-                sid, prior_for_section, new_from_items
+        stats["conflict_recompare_batches"] += len(token_batches)
+        for batch_sections, hits_map in token_batches:
+            if not hits_map:
+                continue
+            batch_sids = [s.section_id for s in batch_sections]
+            ctx_by_section = {sid: conflict_context[sid] for sid in batch_sids}
+            items, item_warnings = await compare_section_batch(
+                batch_sections,
+                hits_map,
+                contract_type=contract_type,
+                memory_context=memory_context,
+                extra_context_by_section=ctx_by_section,
+                settings=cfg,
             )
-            if conflict_row:
-                stats["conflicts_unresolved"] += 1
-                new_findings.append(conflict_row)
-            else:
-                new_findings.extend(new_from_items)
-            superseded_ids.extend(conflict_supersede.get(sid, []))
+            warnings.extend(item_warnings)
+            items_by_section: dict[str, list] = {}
+            for item in items:
+                items_by_section.setdefault(item.section_id, []).append(item)
+            for sid in batch_sids:
+                section_items = items_by_section.get(sid) or []
+                prior_for_section = [
+                    findings_map[fid]
+                    for fid in conflict_supersede.get(sid, [])
+                    if fid in findings_map
+                ]
+                if not section_items:
+                    continue
+                stats["conflicts_recompared"] += 1
+                new_from_items = section_items_to_findings(
+                    section_items, pipeline="section_first_final"
+                )
+                conflict_row = emit_unresolved_policy_conflict(
+                    sid, prior_for_section, new_from_items
+                )
+                if conflict_row:
+                    stats["conflicts_unresolved"] += 1
+                    new_findings.append(conflict_row)
+                else:
+                    new_findings.extend(new_from_items)
+                superseded_ids.extend(conflict_supersede.get(sid, []))
 
     stats["new_findings"] = len(new_findings)
     stats["superseded_count"] = len(set(superseded_ids))

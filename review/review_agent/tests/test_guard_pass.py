@@ -201,3 +201,34 @@ async def test_guard_disabled_is_noop():
     assert updated[0].status == ComplianceStatus.NON_COMPLIANT
     assert stats["guard_skipped"] == 1
     assert not warnings
+
+
+def test_should_guard_ungrounded_non_compliant_kept():
+    from review_agent.services.guard_pass import _should_guard
+
+    finding = _finding(
+        grounded=False,
+        metadata={"source": "playbook_compare", "grounding_failed": True},
+    )
+    assert _should_guard(
+        finding,
+        ReviewSettings(guard_pass_non_compliant_only=True),
+    )
+
+
+def test_should_guard_inconclusive_prior_non_compliant():
+    from review_agent.services.guard_pass import _should_guard
+
+    finding = _finding(
+        status=ComplianceStatus.INCONCLUSIVE,
+        grounded=False,
+        metadata={
+            "source": "playbook_compare",
+            "grounding_failed": True,
+            "prior_status": "NON_COMPLIANT",
+        },
+    )
+    assert _should_guard(
+        finding,
+        ReviewSettings(guard_pass_non_compliant_only=True),
+    )

@@ -1,5 +1,5 @@
 {
-  "tenant_id": "e2e-demo",
+  "tenant_id": "xecurify-demo",
   "policies": [
     {
       "policy_ref": "xecurify-code-of-conduct",

@@ -12,9 +12,9 @@ from review_agent.schemas.obligation import (
     BatchObligationExtractResult,
     ContractObligation,
     ObligationExtractResult,
-    SectionObligationExtractResult,
 )
 from review_agent.services.named_policy_routing import extract_named_policy_title_keys
+from review_agent.resilience.failure_policy import note_batch_llm_failure, should_batch_single_retry
 from review_agent.services.obligation_boilerplate import (
     infer_obligation_boilerplate,
     section_title_is_boilerplate,
@@ -39,6 +39,8 @@ def _fallback_obligations(section: IndexedChunk) -> list[ContractObligation]:
     title = section.title or section.section_id
     boilerplate = section_title_is_boilerplate(title)
     mentions = extract_named_policy_title_keys(body)
+    if mentions:
+        boilerplate = False
     return [
         ContractObligation(
             obligation_id=f"{section.section_id}-o0",
@@ -73,11 +75,17 @@ def _finalize_obligation(
     end = start + len(span_text)
     title = section.title or section.section_id
     mentions = list(explicit_policy_mentions) or extract_named_policy_title_keys(span_text)
-    boilerplate = infer_obligation_boilerplate(
-        text=span_text,
-        section_title=title,
-        obligation_type=obligation_type,
-    ) or section_title_is_boilerplate(title)
+    if mentions:
+        boilerplate = False
+    else:
+        boilerplate = (
+            infer_obligation_boilerplate(
+                text=span_text,
+                section_title=title,
+                obligation_type=obligation_type,
+            )
+            or section_title_is_boilerplate(title)
+        )
     return ContractObligation(
         obligation_id=f"{section.section_id}-o{index}",
         section_id=section.section_id,
@@ -103,6 +111,57 @@ def _sections_user_block(sections: list[IndexedChunk], max_chars: int) -> str:
     return "\n".join(blocks)
 
 
+async def _extract_sections_batch(
+    batch: list[IndexedChunk],
+    *,
+    cfg: ReviewSettings,
+    system_tpl: str,
+) -> list[ContractObligation]:
+    user = _sections_user_block(batch, cfg.obligation_extract_max_section_chars)
+    if len(batch) == 1:
+        user += (
+            "\n\nReturn JSON for this section only (per Output shape in system prompt)."
+        )
+    else:
+        user += (
+            "\n\nMultiple sections above — return JSON: {\"sections\": "
+            "[{\"section_id\": \"...\", \"obligations\": [{\"index\": 0, "
+            "\"text\": \"...\", \"obligation_type\": \"...\", "
+            "\"explicit_policy_mentions\": []}]}]}"
+        )
+    model = get_review_model(
+        temperature=cfg.compliance_llm_temperature,
+        max_tokens=cfg.compliance_llm_max_tokens,
+    )
+    result = await invoke_structured(
+        model,
+        BatchObligationExtractResult,
+        system=system_tpl,
+        user=user,
+    )
+    by_id = {section.section_id: section for section in batch}
+    obligations: list[ContractObligation] = []
+    for item in result.sections:
+        section = by_id.get(item.section_id)
+        if section is None:
+            continue
+        if not item.obligations:
+            obligations.extend(_fallback_obligations(section))
+            continue
+        for ob in item.obligations:
+            obligations.append(
+                _finalize_obligation(
+                    section,
+                    index=ob.index,
+                    text=(ob.text or "").strip(),
+                    obligation_type=(ob.obligation_type or "").strip(),
+                    explicit_policy_mentions=list(ob.explicit_policy_mentions or []),
+                    extract_source="llm",
+                )
+            )
+    return obligations
+
+
 async def extract_obligations_batch(
     sections: list[IndexedChunk],
     *,
@@ -114,55 +173,58 @@ async def extract_obligations_batch(
 
     warnings: list[str] = []
     obligations: list[ContractObligation] = []
+    extract_batch_failures = 0
+    extract_single_retries = 0
+    extract_single_recovered = 0
     template = _PROMPT_PATH.read_text(encoding="utf-8")
     system_tpl, _ = _split_prompt(template)
 
     for start in range(0, len(sections), cfg.obligation_extract_batch_size):
         batch = sections[start : start + cfg.obligation_extract_batch_size]
         try:
-            user = _sections_user_block(batch, cfg.obligation_extract_max_section_chars)
-            user += (
-                "\n\nReturn JSON: {\"sections\": [{\"section_id\": \"...\", "
-                "\"obligations\": [{\"index\": 0, \"text\": \"...\", "
-                "\"obligation_type\": \"...\", \"explicit_policy_mentions\": []}]}]}"
+            obligations.extend(
+                await _extract_sections_batch(batch, cfg=cfg, system_tpl=system_tpl)
             )
-            model = get_review_model(
-                temperature=cfg.compliance_llm_temperature,
-                max_tokens=cfg.compliance_llm_max_tokens,
-            )
-            result = await invoke_structured(
-                model,
-                BatchObligationExtractResult,
-                system=system_tpl,
-                user=user,
-            )
-            by_id = {section.section_id: section for section in batch}
-            for item in result.sections:
-                section = by_id.get(item.section_id)
-                if section is None:
-                    continue
-                if not item.obligations:
-                    obligations.extend(_fallback_obligations(section))
-                    continue
-                for ob in item.obligations:
-                    obligations.append(
-                        _finalize_obligation(
-                            section,
-                            index=ob.index,
-                            text=(ob.text or "").strip(),
-                            obligation_type=(ob.obligation_type or "").strip(),
-                            explicit_policy_mentions=list(ob.explicit_policy_mentions or []),
-                            extract_source="llm",
-                        )
-                    )
         except Exception as exc:  # noqa: BLE001
+            extract_batch_failures += 1
+            note_batch_llm_failure()
             logger.warning("obligation extract LLM failed for batch: %s", exc)
             warnings.append(f"obligation extract LLM failed: {exc}")
-            for section in batch:
-                obligations.extend(_fallback_obligations(section))
+            if should_batch_single_retry(
+                exc,
+                batch_len=len(batch),
+                batch_retry_enabled=cfg.obligation_extract_batch_retry_single,
+                posture_enabled=cfg.llm_review_posture_enabled,
+                stage="obligation_extract",
+            ):
+                for section in batch:
+                    extract_single_retries += 1
+                    try:
+                        recovered = await _extract_sections_batch(
+                            [section], cfg=cfg, system_tpl=system_tpl
+                        )
+                        obligations.extend(recovered)
+                        if recovered and recovered[0].extract_source == "llm":
+                            extract_single_recovered += len(recovered)
+                    except Exception as single_exc:  # noqa: BLE001
+                        logger.warning(
+                            "obligation extract single retry failed for %s: %s",
+                            section.section_id,
+                            single_exc,
+                        )
+                        obligations.extend(_fallback_obligations(section))
+            else:
+                for section in batch:
+                    obligations.extend(_fallback_obligations(section))
 
     if not obligations:
         for section in sections:
             obligations.extend(_fallback_obligations(section))
 
-    return ObligationExtractResult(obligations=obligations, warnings=warnings)
+    return ObligationExtractResult(
+        obligations=obligations,
+        warnings=warnings,
+        extract_batch_failures=extract_batch_failures,
+        extract_single_retries=extract_single_retries,
+        extract_single_recovered=extract_single_recovered,
+    )

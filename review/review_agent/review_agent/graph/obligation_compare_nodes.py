@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from document_core.schemas.chunk import IndexedChunk
+from document_core.schemas.compliance import ComplianceStatus
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import get_settings
+from review_agent.errors import FatalPipelineError
 from review_agent.schemas.evidence_sufficiency import EvidenceSufficiencyResult
 from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.obligation_retrieval import ObligationRetrievalBundle
@@ -26,8 +28,33 @@ async def obligation_compare_node(
     state: ReviewState,
     client: DocumentMCPClient,
 ) -> dict[str, Any]:
-    _ = client
     settings = get_settings()
+    try:
+        return await _obligation_compare_impl(state, client, settings)
+    except FatalPipelineError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        if not settings.compare_branch_fail_open:
+            raise
+        prior = dict(state.get("compliance_stats") or {})
+        return {
+            "obligation_compare_items": [],
+            "obligation_findings": [],
+            "compliance_stats": {
+                **prior,
+                "obligation_compare_failed": True,
+                "obligation_compare_fail_reason": str(exc)[:500],
+            },
+            "warnings": [f"obligation compare branch failed (fail-open): {exc}"],
+        }
+
+
+async def _obligation_compare_impl(
+    state: ReviewState,
+    client: DocumentMCPClient,
+    settings,
+) -> dict[str, Any]:
+    _ = client
     if not obligation_routing_active(state["tenant_id"], settings) or not settings.obligation_compare_enabled:
         return {}
 
@@ -95,7 +122,8 @@ async def obligation_compare_node(
         sections_by_id[section.section_id] = section
 
     compare_warnings: list[str] = []
-    compare_stats: dict[str, int] = {}
+    compare_stats: dict[str, int] = {"obligation_compare_llm_batches": 0}
+    llm_items: list = []
     if compare_queue:
         llm_items, compare_warnings, compare_stats = await compare_obligations_batch(
             compare_queue,
@@ -108,6 +136,10 @@ async def obligation_compare_node(
             sections_by_id=sections_by_id,
         )
         items.extend(llm_items)
+
+    llm_ipc_count = sum(
+        1 for item in llm_items if item.status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
+    )
 
     validated, validation_warnings, rejected = validate_obligation_compare_items(
         items,
@@ -129,21 +161,53 @@ async def obligation_compare_node(
     ipc_count = sum(1 for item in validated if item.status.value == "INSUFFICIENT_POLICY_CONTEXT")
     compare_count = len(validated) - ipc_count
     extract_stats = dict(state.get("obligation_extract_stats") or {})
+    unique_obligation_ids = {item.obligation_id for item in llm_items}
+    over_cap_ids = [
+        oid
+        for oid in unique_obligation_ids
+        if sum(1 for item in llm_items if item.obligation_id == oid) > 2
+    ]
+    if over_cap_ids:
+        compare_warnings.append(
+            f"obligation compare returned >2 items for: {', '.join(sorted(over_cap_ids)[:5])}"
+        )
 
-    compliance_stats = dict(state.get("compliance_stats") or {})
+    prior_stats = dict(state.get("compliance_stats") or {})
+    evidence_skip = dict(prior_stats.get("obligation_evidence_skip_by_reason") or {})
+    compliance_stats = dict(prior_stats)
     compliance_stats.update(
         {
             "obligation_compare_count": compare_count,
             "obligation_ipc_findings": ipc_count,
+            "obligation_compare_llm_ipc_count": llm_ipc_count,
             "obligation_compare_llm_calls": compare_stats.get("obligation_compare_llm_batches", 0),
             "routing_validation_rejected": rejected,
             "compliance_mode": "obligation_routing",
+            "obligation_pipeline_funnel": {
+                "extracted": len(obligations),
+                "compare_queued": len(compare_queue),
+                "compare_pre_ipc": len(obligations) - len(compare_queue),
+                "llm_batches": compare_stats.get("obligation_compare_llm_batches", 0),
+                "llm_batches_failed": compare_stats.get("obligation_compare_llm_batches_failed", 0),
+                "llm_items_returned": len(llm_items),
+                "llm_unique_obligations_returned": len(unique_obligation_ids),
+                "llm_ipc_count": llm_ipc_count,
+                "omitted_from_batch": compare_stats.get("obligation_compare_omitted", 0),
+                "single_retry_batches": compare_stats.get("obligation_compare_single_retries", 0),
+                "single_recovered": compare_stats.get("obligation_compare_single_recovered", 0),
+                "policy_id_backfilled": compare_stats.get("obligation_compare_policy_id_backfilled", 0),
+                "post_validation_compared": compare_count,
+                "post_validation_ipc": ipc_count,
+                "skip_by_reason": evidence_skip,
+            },
             "routing_summary": build_routing_summary(
                 obligation_count=len(obligations),
                 alias_hit_count=int(extract_stats.get("obligation_alias_hit_count") or 0),
                 ipc_count=ipc_count,
                 compare_count=compare_count,
                 wrong_policy_blocked=rejected,
+                planner_calls_snapshot=prior_stats.get("routing_planner_calls"),
+                catalog_search_calls_snapshot=prior_stats.get("routing_catalog_search_calls"),
             ),
         }
     )

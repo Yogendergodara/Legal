@@ -146,3 +146,28 @@ def test_build_ops_zero_hit_ids():
     assert artifact.ops.degraded_section_count == 2
     assert artifact.ops.retrieval_zero_hit_section_ids == ["s2"]
     assert artifact.ops.degraded_section_count == len(artifact.degraded_sections)
+
+
+def test_build_review_artifact_engine_diagnosis_mirror():
+    diagnosis = {
+        "schema_version": "1.0",
+        "pipeline_mode": "section_first",
+        "ipc_summary": {"section_ipc_pct": 0.0},
+    }
+    enriched_stats = {
+        "sections_total": 2,
+        "engine_diagnosis": diagnosis,
+        "review_confidence": {"sections_total": 2},
+    }
+    state = {
+        "tenant_id": "demo",
+        "compliance_stats": {"sections_total": 2},
+    }
+    artifact = build_review_artifact(
+        state,
+        engine_diagnosis=diagnosis,
+        compliance_stats=enriched_stats,
+    )
+    assert artifact.engine_diagnosis == diagnosis
+    assert artifact.compliance_stats["sections_total"] == 2
+    assert artifact.compliance_stats["engine_diagnosis"] == diagnosis

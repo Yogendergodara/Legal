@@ -378,6 +378,126 @@ async def test_gap_llm_runs_when_no_hits_after_retrieve(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unclear_inconclusive_moderate_confidence_triggers_recompare(monkeypatch):
+    section = _section("s-unclear-mid")
+    policy_hit = RetrievalHit(
+        parent_chunk=IndexedChunk(
+            chunk_id="p1",
+            document_id=uuid4(),
+            tenant_id="demo",
+            kind=DocumentKind.POLICY,
+            chunk_role=ChunkRole.PARENT,
+            section_id="5",
+            section_path="5",
+            title="Advisory Services",
+            text="Kick-off meeting within 30 days.",
+        ),
+        score=0.8,
+    )
+    bundle = SectionRetrievalBundle(
+        section_id="s-unclear-mid",
+        categories=["support"],
+        policy_hits=[policy_hit],
+    )
+
+    async def _fake_compare(*_args, **_kwargs):
+        from review_agent.schemas.section_compare import SectionCompareItem
+
+        return (
+            [
+                SectionCompareItem(
+                    section_id="s-unclear-mid",
+                    policy_document_id=str(policy_hit.parent_chunk.document_id),
+                    policy_section_id="5",
+                    dimension_label="Advisory Services",
+                    status=ComplianceStatus.COMPLIANT,
+                    severity=Severity.INFO,
+                    rationale="Contract aligns after second pass.",
+                    confidence=0.9,
+                )
+            ],
+            [],
+        )
+
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.compare_section_batch",
+        _fake_compare,
+    )
+
+    unclear_finding = ComplianceFinding(
+        finding_id="f-unclear-mid",
+        dimension_id="s-unclear-mid:5",
+        dimension_label="Advisory Services",
+        status=ComplianceStatus.INCONCLUSIVE,
+        contract_section_id="s-unclear-mid",
+        policy_quote="Kick-off meeting within 30 days.",
+        rationale="Contract does not specify kick-off timeline while policy requires 30 days.",
+        metadata={
+            "confidence": 0.6,
+            "source": "playbook_compare",
+            "needs_final_verify": True,
+        },
+    )
+
+    new_findings, _warnings, stats, superseded = await run_final_gap_verify(
+        client=object(),
+        tenant_id="demo",
+        sections_by_id={"s-unclear-mid": section},
+        bundles={"s-unclear-mid": bundle},
+        gap_section_ids=[],
+        unclear_finding_ids=["f-unclear-mid"],
+        unclear_recompare_finding_ids=["f-unclear-mid"],
+        existing_findings=[unclear_finding],
+        contract_type="msa",
+        policy_type=None,
+    )
+    assert stats["unclear_recompare_eligible"] == 1
+    assert stats["unclear_recompared"] == 1
+    assert stats["unclear_recompare_ineligible"] == 0
+    assert len(new_findings) == 1
+    assert new_findings[0].status == ComplianceStatus.COMPLIANT
+    assert "f-unclear-mid" in superseded
+
+
+@pytest.mark.asyncio
+async def test_unclear_gap_routed_not_counted_as_skipped(monkeypatch):
+    async def _fake_gap_llm(*_args, **_kwargs):
+        return [], [], 0
+
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.verify_gap_sections_llm",
+        _fake_gap_llm,
+    )
+
+    gap_finding = ComplianceFinding(
+        finding_id="f-gap",
+        dimension_id="s-gap:compare_omitted",
+        dimension_label="compare omitted",
+        status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+        contract_section_id="s-gap",
+        rationale="Compare omitted initially.",
+        metadata={"gap_type": "compare_omitted"},
+    )
+
+    _new_findings, _warnings, stats, _superseded = await run_final_gap_verify(
+        client=object(),
+        tenant_id="demo",
+        sections_by_id={"s-gap": _section("s-gap")},
+        bundles={"s-gap": SectionRetrievalBundle(section_id="s-gap", categories=[], policy_hits=[])},
+        gap_section_ids=["s-gap"],
+        compare_omitted_gap_ids=[],
+        no_policy_gap_ids=["s-gap"],
+        unclear_finding_ids=["f-gap"],
+        existing_findings=[gap_finding],
+        contract_type="msa",
+        policy_type=None,
+    )
+    assert stats["unclear_recompare_gap_routed"] == 1
+    assert stats["unclear_recompare_eligible"] == 0
+    assert stats["unclear_recompare_skipped"] == 0
+
+
+@pytest.mark.asyncio
 async def test_unclear_triggers_recompare(monkeypatch):
     section = _section("s-unclear")
     policy_hit = RetrievalHit(
@@ -481,10 +601,11 @@ async def test_conflict_triggers_recompare_with_context(monkeypatch):
         policy_hits=[policy_hit],
     )
 
-    captured_context: list[str] = []
+    captured_context: dict[str, str] = {}
 
     async def _fake_compare(*_args, **kwargs):
-        captured_context.append(kwargs.get("extra_user_context", ""))
+        ctx_map = kwargs.get("extra_context_by_section") or {}
+        captured_context.update(ctx_map)
         from review_agent.schemas.section_compare import SectionCompareItem
 
         return (
@@ -539,9 +660,9 @@ async def test_conflict_triggers_recompare_with_context(monkeypatch):
     assert stats["conflicts_recompared"] == 1
     assert len(new_findings) == 1
     assert "f-left" in superseded and "f-right" in superseded
-    assert captured_context
-    assert "COMPLIANT" in captured_context[0]
-    assert "NON_COMPLIANT" in captured_context[0]
+    assert "s-conflict" in captured_context
+    assert "COMPLIANT" in captured_context["s-conflict"]
+    assert "NON_COMPLIANT" in captured_context["s-conflict"]
 
 
 @pytest.mark.asyncio
@@ -627,12 +748,107 @@ async def test_unclear_recompare_capped_at_max_sections(monkeypatch):
         existing_findings=existing,
         contract_type="msa",
         policy_type=None,
-        settings=ReviewSettings(final_verify_unclear_recompare_max_sections=4),
+        settings=ReviewSettings(
+            final_verify_unclear_recompare_max_sections=4,
+            final_verify_unclear_recompare_cap_mode="fixed",
+        ),
     )
     assert stats["unclear_recompared"] == 4
     assert stats["unclear_recompare_capped"] == 2
     assert sum(compare_calls) == 4
     assert any("capped at 4" in w for w in warnings)
+
+
+@pytest.mark.asyncio
+async def test_unclear_recompare_adaptive_cap_scales_down(monkeypatch):
+    from review_agent.config import ReviewSettings
+
+    policy_doc_id = uuid4()
+    policy_hit = RetrievalHit(
+        parent_chunk=IndexedChunk(
+            chunk_id="p1",
+            document_id=policy_doc_id,
+            tenant_id="demo",
+            kind=DocumentKind.POLICY,
+            chunk_role=ChunkRole.PARENT,
+            section_id="5",
+            section_path="5",
+            title="Policy",
+            text="Policy requirement text.",
+        ),
+        score=0.8,
+    )
+
+    async def _fake_compare(sections, *_args, **_kwargs):
+        from review_agent.schemas.section_compare import SectionCompareItem
+
+        items = [
+            SectionCompareItem(
+                section_id=s.section_id,
+                policy_document_id=str(policy_doc_id),
+                policy_section_id="5",
+                dimension_label="Test",
+                status=ComplianceStatus.COMPLIANT,
+                severity=Severity.INFO,
+                rationale="Recompared.",
+                confidence=0.9,
+            )
+            for s in sections
+        ]
+        return items, []
+
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.compare_section_batch",
+        _fake_compare,
+    )
+
+    sections_by_id = {}
+    bundles = {}
+    existing = []
+    recompare_ids = []
+    for i in range(6):
+        sid = f"s{i}"
+        sections_by_id[sid] = _section(sid)
+        bundles[sid] = SectionRetrievalBundle(
+            section_id=sid,
+            categories=["general"],
+            policy_hits=[policy_hit],
+        )
+        fid = f"f{i}"
+        recompare_ids.append(fid)
+        existing.append(
+            ComplianceFinding(
+                finding_id=fid,
+                dimension_id=f"{sid}:5",
+                dimension_label="Test",
+                status=ComplianceStatus.INCONCLUSIVE,
+                contract_section_id=sid,
+                policy_quote="Policy requirement text.",
+                rationale="Low confidence.",
+                metadata={"confidence": 0.1 + i * 0.05, "source": "playbook_compare"},
+            )
+        )
+
+    _new_findings, warnings, stats, _superseded = await run_final_gap_verify(
+        client=object(),
+        tenant_id="demo",
+        sections_by_id=sections_by_id,
+        bundles=bundles,
+        gap_section_ids=[],
+        unclear_finding_ids=recompare_ids,
+        unclear_recompare_finding_ids=recompare_ids,
+        existing_findings=existing,
+        contract_type="msa",
+        policy_type=None,
+        settings=ReviewSettings(
+            final_verify_unclear_recompare_max_sections=8,
+            final_verify_unclear_recompare_cap_mode="adaptive",
+        ),
+    )
+    assert stats["unclear_recompare_cap_effective"] == 2
+    assert stats["unclear_recompared"] == 2
+    assert stats["unclear_recompare_capped"] == 4
+    assert any("capped at 2" in w for w in warnings)
 
 
 @pytest.mark.asyncio
@@ -822,3 +1038,62 @@ async def test_verify_gap_sections_llm_normalizes_quotes(monkeypatch):
     assert findings[0].contract_quote == "Vendor liability is unlimited."
     assert findings[0].metadata.get("final_verify") == "gap_llm"
     assert not warnings
+
+
+@pytest.mark.asyncio
+async def test_gap_verify_parallel_re_retrieve(monkeypatch):
+    retrieve_calls: list[str] = []
+
+    async def _fake_multi_retrieve(*_args, section, **_kwargs):
+        retrieve_calls.append(section.section_id)
+        return SectionRetrievalBundle(
+            section_id=section.section_id,
+            categories=["indemnity"],
+            policy_hits=[],
+            retrieval_meta={},
+        )
+
+    async def _fake_gap_llm(sections, *_args, **_kwargs):
+        return [], [], 0
+
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.multi_retrieve_for_section",
+        _fake_multi_retrieve,
+    )
+    monkeypatch.setattr(
+        "review_agent.services.final_verify_llm.verify_gap_sections_llm",
+        _fake_gap_llm,
+    )
+
+    section_ids = [f"s-gap-{i}" for i in range(5)]
+    sections_by_id = {sid: _section(sid) for sid in section_ids}
+    bundles = {
+        sid: SectionRetrievalBundle(section_id=sid, categories=[], policy_hits=[])
+        for sid in section_ids
+    }
+    existing = [
+        ComplianceFinding(
+            finding_id=f"f-{sid}",
+            dimension_id=f"{sid}:no_policy",
+            dimension_label="no policy",
+            status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+            contract_section_id=sid,
+            rationale="No policy retrieved initially.",
+            metadata={"gap_type": "no_policy"},
+        )
+        for sid in section_ids
+    ]
+
+    _new_findings, _warnings, stats, _superseded = await run_final_gap_verify(
+        client=object(),
+        tenant_id="demo",
+        sections_by_id=sections_by_id,
+        bundles=bundles,
+        gap_section_ids=section_ids,
+        existing_findings=existing,
+        contract_type="msa",
+        policy_type=None,
+    )
+    assert stats["re_retrieved"] == 5
+    assert len(retrieve_calls) == 5
+    assert set(retrieve_calls) == set(section_ids)

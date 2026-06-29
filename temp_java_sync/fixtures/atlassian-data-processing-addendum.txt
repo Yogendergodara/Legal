@@ -1,0 +1,439 @@
+Effective starting: August 17, 2026
+
+This Data Processing Addendum (“ DPA ”) supplements the Atlassian Customer Agreement , or other agreement in place between Customer and Atlassian covering Customer’s use of Atlassian’s Products and related Support and Advisory Services (the “ Agreement ”). Unless otherwise defined in this DPA or in the Agreement, all capitalized terms used in this DPA will have the meanings given to them in Section 9 of this DPA. Customer enters into this DPA on behalf of itself and in the name and on behalf of its Authorised Affiliates permitted to use the Products and related Support and Advisory Services under the Agreement. For the purposes of this DPA only, the term “Customer” includes Customer and such Authorised Affiliates.
+
+1. Scope and Term
+
+1.1 Roles of the Parties. For the purposes of the Agreement, the parties agree that:
+
+(a) Customer is either a Controller of Customer Data, or a Processor of Customer Data acting on another Controller’s behalf (e.g. Customer’s Affiliate) while passing down relevant processing instructions to Atlassian. Processing details are stated in Schedule 1 (Description of Processing).
+
+(b) Atlassian is a Processor (or respectively, a Sub-processor) of Customer Data. Processing details are stated in Schedule 1 (Description of Processing).
+
+1.2 Term of the DPA . The term of this DPA coincides with the term of the Agreement and terminates upon expiration or earlier termination of the Agreement (or, if later, the date on which Atlassian ceases all Processing of Customer Personal Data).
+
+1.3 Order of Precedence . If there is any conflict or inconsistency among the following documents, the order of precedence from highest to lowest will be: (1) the applicable terms stated in Schedule 2 (Region-Specific Terms including any transfer provisions); (2) Schedule 1 (Description of Processing); (3) the main body of this DPA; and (4) the Agreement.
+
+2. Processing of Personal Data
+
+2.1 Customer Instructions .
+
+(a) This DPA, the Agreement, applicable Orders and Customer’s use of the Products (including relevant configurations and settings) and related Support and Advisory Services constitute Customer’s documented instructions regarding Atlassian’s Processing of Customer Data (“ Documented Instructions ”).
+
+(b) Atlassian must Process Customer Data solely in accordance with the Documented Instructions, as further stated in Section 6.1 of Schedule 1 (Description of Processing). Customer:
+
+(i) must ensure its Documented Instructions comply with Applicable Data Protection Law. Atlassian is not responsible for monitoring Customer's compliance with Applicable Data Protection Law; and
+
+(ii) is responsible for determining whether the Products and related Support and Advisory Services are appropriate for the Processing of Customer Data under Applicable Data Protection Law.
+
+2.2 Confidentiality . Atlassian must treat Customer Personal Data as Customer’s Confidential Information under the Agreement. Atlassian must ensure personnel authorized to Process Personal Data are bound by written or statutory obligations of confidentiality.
+
+3. Security
+
+3.1 Security Measures. Atlassian has implemented and will maintain appropriate technical and organizational measures designed to protect the security, confidentiality, integrity and availability of Customer Data and protect against Security Incidents. Customer is responsible for configuring the Products and using features and functionalities made available by Atlassian to maintain appropriate security in light of the nature of Customer Data. Atlassian’s current technical and organizational measures are described here . Customer acknowledges that the Security Measures are subject to technical progress and development and that Atlassian may update or modify the Security Measures from time to time, provided that such updates and modifications do not materially decrease the overall security of the Cloud Products during a Subscription Term.
+
+3.2 Security Incidents . Atlassian must notify Customer without undue delay and, where feasible, no later than seventy-two (72) hours after becoming aware of a Security Incident. Atlassian must make reasonable efforts to identify the cause of the Security Incident, mitigate the effects and remediate the cause to the extent within Atlassian’s reasonable control. Upon Customer’s request and taking into account the nature of the Processing and the information available to Atlassian, Atlassian must assist Customer by providing information reasonably necessary for Customer to meet its Security Incident notification obligations under Applicable Data Protection Law. Atlassian’s notification of a Security Incident is not an acknowledgment by Atlassian of its fault or liability.
+
+4. Sub-processing
+
+4.1 General Authorisation . By entering into this DPA, Customer provides general authorisation for Atlassian to engage Sub-processors to Process Customer Personal Data. Atlassian must: (i) enter into a written agreement with each Sub-processor imposing data protection terms that require the Sub-processor to protect Customer Personal Data to the standard required by Applicable Data Protection Law and to the same standard provided by this DPA; and (ii) remain liable to Customer if such Sub-processor fails to fulfill its data protection obligations with regard to the relevant Processing activities under the Agreement.
+
+4.2 Notice of New Sub-processors . Atlassian maintains an up-to-date list of its Sub-processors here , which contains a mechanism for Customer to subscribe to notifications of new Sub-processors. Atlassian will provide such notice, to those emails subscribed, at least thirty (30) days before allowing any new Sub-processor to Process Customer Personal Data (the “ Sub-processor Notice Period ”).
+
+4.3 Objection to New Sub-processors . Customer may object to Atlassian’s appointment of a new Sub-processor during the Sub-processor Notice Period. If Customer objects, Customer, as its sole and exclusive remedy, may terminate the applicable Order for the affected Cloud Product and related Support and Advisory Services in accordance with Section 12.2 (Termination for Convenience) of the Agreement.
+
+5. Assistance and Cooperation Obligations
+
+5.1 Data Subject Rights . Taking into account the nature of the Processing, Atlassian must provide reasonable and timely assistance to Customer to enable Customer to respond to requests for exercising a data subject’s rights (including rights of access, rectification, erasure, restriction, objection, and data portability) in respect to Customer Personal Data.
+
+5.2 Cooperation Obligations . Upon Customer’s reasonable request, and taking into account the nature of the Processing, Atlassian will provide reasonable assistance to Customer in fulfilling Customer’s obligations under Applicable Data Protection Law (including data protection impact assessments and consultations with regulatory authorities), provided that Customer cannot reasonably fulfill such obligations independently with help of available Documentation.
+
+5.3 Third Party Requests . Unless prohibited by Law, Atlassian will promptly notify Customer of any valid, enforceable legal process or governmental request compelling Atlassian to disclose Customer Personal Data. Atlassian will follow its law enforcement guidelines in responding to such requests. In the event that Atlassian receives an inquiry or a request for information from any other third party (such as a regulator or data subject) concerning the Processing of Customer Personal Data, Atlassian will redirect such inquiries to Customer, and will not provide any information unless required to do so under Law.
+
+6. Deletion and Return of Customer Personal Data
+
+6.1 During Subscription Term . During the Subscription Term, Customer and its Users may, through the features of the Cloud Products, access, retrieve or delete Customer Personal Data.
+
+6.2 Post Termination . Following expiration or termination of the Agreement, Atlassian must, in accordance with the Documentation, delete all Customer Personal Data. Notwithstanding the foregoing, Atlassian may retain Customer Personal Data (i) as required by Applicable Data Protection Law or (ii) in accordance with its standard backup or record retention policies, provided that, in either case, Atlassian will maintain the confidentiality of, and otherwise comply with the applicable provisions of this DPA with respect to, retained Customer Personal Data and not further Process it except as required by Applicable Data Protection Law.
+
+7. Audit
+
+7.1 Audit Reports . Atlassian is regularly audited by independent third-party auditors and/or internal auditors, including as described here . Upon request, and on the condition that Customer has entered into an applicable non-disclosure agreement with Atlassian, Atlassian will supply a summary copy of relevant audit report(s) to Customer, so Customer can verify Atlassian’s compliance with the audit standards against which it has been assessed, and this DPA. If Customer cannot reasonably verify Atlassian’s compliance with the terms of this DPA, Atlassian will provide written responses (on a confidential basis) to all reasonable requests for information made by Customer related to Atlassian’s Processing of Customer Personal Data, provided that such right may be exercised no more than once every twelve (12) months.
+
+7.2 On-site Audits . Only to the extent Customer cannot reasonably satisfy Atlassian’s compliance with this DPA through the exercise of its rights under Section 7.1 above, or where required by Applicable Data Protection Law or a regulatory authority, Customer, or its authorized representatives, may, at Customer’s expense, conduct audits (including inspections) during the term of the Agreement to assess Atlassian’s compliance with the terms of this DPA. Any audit must (i) be conducted during Atlassian’s regular business hours, with reasonable advance written notice of at least sixty (60) calendar days (unless Applicable Data Protection Law or a regulatory authority requires a shorter notice period); (ii) be subject to reasonable confidentiality controls obligating Customer (and its authorized representatives) to keep confidential any information disclosed that, by its nature, should be confidential; (iii) occur no more than once every twelve (12) months; and (iv) restrict its findings to only information relevant to Customer.
+
+8. International Provisions
+
+To the extent Atlassian Processes Personal Data protected by Applicable Data Protection Laws in one of the regions listed in Schedule 2 (Region-Specific Terms), the terms specified for the applicable regions will also apply, including the provisions relevant for international transfers of Personal Data (directly or via onward transfer).
+
+9. Authorised Affiliates
+
+9.1 Authorised Affiliate Rights . Only the Customer that has entered the Agreement may exercise any right or seek any remedy under this DPA, and such Customer must exercise such rights and seek such remedies in a combined manner, for itself and all Authorised Affiliates, instead of doing so separately for each.
+
+9.2 Communication Obligations . The Customer that has entered the Agreement is responsible for coordinating all communication with Atlassian under this DPA and making and receiving any communications related to this DPA on behalf of its Authorised Affiliates.
+
+9.3 Liability . For clarity, each party’s and its Affiliates' liability arising out of or related to this DPA is subject to the “Limitations of Liability” section in the Agreement and any reference in such section to the liability of a party means aggregate liability of that party and all of its Affiliates under the Agreement (including this DPA).
+
+10. Definitions
+
+“ Applicable Data Protection Law ” means all Laws applicable to the Processing of Personal Data under the Agreement.
+
+“ Authorised Affiliate ” means any Customer Affiliate which: (i) is subject to Applicable Data Protection Law with respect to the Customer Personal Data; and (ii) may use the Products and related Support and Advisory Services under the Agreement, but has not signed its own Order with Atlassian, and is not a “Customer” as defined under the Agreement.
+
+“ Controller ” means the natural or legal person, public authority, agency, or other body which, alone or jointly with others, determines the purposes and means of the Processing of Personal Data.
+
+“ Customer Personal Data '' means Personal Data contained in Customer Data and/or Customer Materials that Atlassian Processes under the Agreement solely on behalf of Customer. For clarity, Customer Personal Data includes any Personal Data included in the attachments provided by Customer or its Users in any technical support requests.
+
+“ Personal Data ” means information about an identified or identifiable natural person, or which otherwise constitutes “personal data”, “personal information”, “personally identifiable information” or similar terms as defined in Applicable Data Protection Law.
+
+“ Processing ” (and “ Process ” and “ Processed ”) means any operation or set of operations which is performed on Personal Data or on sets of Personal Data, whether or not by automated means, such as collection, recording, organization, structuring, storage, adaptation or alteration, retrieval, consultation, use, disclosure by transmission, dissemination or otherwise making available, alignment or combination, restriction, erasure, or destruction.
+
+“ Processor ” means the entity which Processes Personal Data on behalf of the Controller.
+
+“ Security Incident '' means any breach of security leading to the accidental or unlawful destruction, loss, alteration, unauthorized disclosure of, or access to Customer Data Processed by Atlassian and/or its Sub-processors, and for the purposes of this definition, “Processing” includes Personal Data and Customer Data.
+
+“ Sub-processor ” means any third party (inc. Atlassian Affiliates) engaged by Atlassian to Process Customer Personal Data.
+
+Schedule 1 Description of Processing
+
+1. Categories of data subjects whose Personal Data is Processed : Customer, Users, and any other individuals whose Personal Data is provided to Atlassian by or at the direction of Customer or its Users via the Cloud Products, including from Third-Party Products..
+
+2. Categories of Personal Data Processed : Customer Personal Data, the content of which is determined and controlled solely by Customer and its Users.
+
+3. Sensitive data transferred : Subject to Section 6.3 of the Agreement (Sensitive Health Information and HIPAA), Customer or its Users may upload content to the Cloud Products which may include (i) data revealing racial or ethnic origin, political opinions, religious or philosophical beliefs, or trade union membership, (ii) genetic data, biometric data Processed for the purposes of uniquely identifying a natural person, data concerning health, or data concerning a natural person's sex life or sexual orientation, or (iii) data relating to criminal convictions and offences (collectively “ Sensitive Data ”), which is determined and controlled solely by Customer and its Users.
+
+4. The frequency of the transfer : Continuous.
+
+5. Nature of the Processing : Atlassian will Process Personal Data in order to provide the Products and related Support and Advisory Services in accordance with the Agreement, including this DPA. Additional information regarding the nature of the Processing (including transfer) is described in respective Orders for relevant Products and Documentation referring to technical capabilities and features, including but not limited to collection, structuring, storage, transmission, or otherwise making available of Personal Data by automated means.
+
+6. Purposes of the Processing :
+
+6.1. Customer Data : Atlassian will Process Customer Data as a Processor in accordance with Customer’s Documented Instructions to:
+
+(a) provide and improve the Products and related Support and Advisory Services for Customer only, and enable the use of various features and functionalities in accordance with the Documentation and as directed by Users through the Cloud Products, including investigating Security Incidents, and resolving issues, bugs and errors; and
+
+(b) enforce the Acceptable Use Policy .
+
+6.2. De-identified and Aggregated Data . In accordance with applicable data contribution Cloud Product functionalities, Atlassian must de-identify and aggregate Customer Data and may use such De-identified and Aggregated Data to improve the Cloud Products and related Support and Advisory Services generally. “ De-identified and Aggregated Data ” means Customer Data that cannot reasonably be used to single out, infer information about, or otherwise be linked to an individual data subject.
+
+6.3. Controller Activities . Atlassian is a Controller of Personal Data as specified in Atlassian’s Privacy Policy . This DPA does not limit or prohibit Atlassian from acting in that capacity.
+
+7. Duration of Processing: Atlassian will Process Customer Personal Data for the term of the Agreement as outlined in Section 6 (Deletion and Return of Customer Personal Data).
+
+8. Transfers to Sub-processors : Atlassian will transfer Customer Personal Data to Sub-processors as permitted in Section 4 (Sub-processing).
+
+Schedule 2 Region-Specific Terms
+
+Unless otherwise defined in this DPA or in the Agreement, all capitalized terms used in this Schedule will have the meanings given to them in Section 4 of this Schedule.
+
+1. Europe, United Kingdom and Switzerland
+
+1.1 Customer Instructions. In addition to Section 2.1 (Customer Instructions), and Schedule 1 (Description of Processing) of the DPA above, Atlassian will Process Customer Personal Data only on Documented Instructions from Customer, including with regard to transfers of such Customer Personal Data to a third country or an international organisation, unless required to do so by Applicable Data Protection Law to which Atlassian is subject; in such a case, Atlassian shall inform Customer of that legal requirement before Processing, unless that law prohibits such information on important grounds of public interest. Atlassian will promptly inform Customer if it becomes aware that Customer's Processing instructions infringe Applicable Data Protection Law.
+
+1.2 European Transfers . Where Personal Data protected by the EU Data Protection Law is transferred, either directly or via onward transfer, to a country outside of Europe that is not subject to an adequacy decision, the following applies:
+
+(a) The EU SCCs are hereby incorporated into this DPA by reference as follows:
+
+(i) Customer is the “data exporter” and Atlassian is the “data importer.”
+
+(ii) Module Two (Controller to Processor) applies where Customer is a Controller of Customer Personal Data and Atlassian is Processing Customer Personal Data as a Processor.
+
+(iii) Module Three (Processor to Processor) applies where Customer is a Processor of Customer Personal Data and Atlassian is Processing Customer Personal Data as another Processor.
+
+(iv) By entering into this DPA, each party is deemed to have signed the EU SCCs as of the commencement date of the Agreement.
+
+(b) For each Module, where applicable:
+
+(i) In Clause 7, the optional docking clause does not apply.
+
+(ii) In Clause 9, Option 2 applies, and the time period for prior notice of Sub-processor changes is stated in Section 4 (Sub-processing) of this DPA.
+
+(iii) In Clause 11, the optional language does not apply.
+
+(iv) In Clause 17, Option 1 applies, and the EU SCCs are governed by Irish law.
+
+(v) In Clause 18(b), disputes will be resolved before the courts of Ireland.
+
+(vi) The Appendix of EU SCCs is populated as follows:
+
+The information required for Annex I(A) is located in the Agreement and/or relevant Orders.
+
+The information required for Annex I(B) is located in Schedule 1 (Description of Processing) of this DPA.
+
+The competent supervisory authority in Annex I(C) will be determined in accordance with the Applicable Data Protection Law; and
+
+The information required for Annex II is located here .
+
+1.3 Swiss Transfers . Where Personal Data protected by Swiss Data Protection Law is transferred, either directly or via onward transfer, to any other country that is not subject to an adequacy decision, the EU SCCs apply as stated in in Section 1.2 (European Transfers) above with the following modifications:
+
+(a) All references in the EU SCCs to “Regulation (EU) 2016/679” will be interpreted as references to Swiss Data Protection Law, and references to specific Articles of “Regulation (EU) 2016/679” will be replaced with the equivalent article or section of Swiss Data Protection Law; all references to the EU Data Protection Law in this DPA will be interpreted as references to Swiss Data Protection Law.
+
+(b) In Clause 13, the competent supervisory authority is the Swiss Federal Data Protection and Information Commissioner.
+
+(c) In Clause 17, the EU SCCs are governed by the laws of Switzerland.
+
+(d) In Clause 18(b), disputes will be resolved before the courts of Switzerland.
+
+(e) All references to Member State will be interpreted to include Switzerland and Data Subjects in Switzerland are not excluded from enforcing their rights in their place of habitual residence in accordance with Clause 18(c).
+
+1.4 United Kingdom Transfers . Where Personal Data protected by the UK Data Protection Law is transferred, either directly or via onward transfer, to a country outside of the United Kingdom that is not subject to an adequacy decision, the following applies:
+
+(a) The EU SCCs apply as set forth in Section 1.2 (European Transfers) above with the following modifications:
+
+(i) Each party shall be deemed to have signed the UK Addendum.
+
+(ii) For Table 1 of the UK Addendum, the parties’ key contact information is located in the Agreement and/or relevant Orders.
+
+(iii) For Table 2 of the UK Addendum, the relevant information about the version of the EU SCCs, modules, and selected clauses which this UK Addendum is appended to is located above in Section 1.2 (European Transfers) of this Schedule.
+
+(iv) For Table 3 of the UK Addendum:
+
+The information required for Annex 1A is located in the Agreement and/or relevant Orders.
+
+The Information required for Annex 1B is located in Schedule 1 (Description of Processing) of this DPA.
+
+The information required for Annex II is located here .
+
+The information required for Annex III is located in Section 4 (Sub-processing) of this DPA.
+
+(b) In Table 4 of the UK Addendum, both the data importer and data exporter may end the UK Addendum.
+
+1.5 Data Privacy Framework . Atlassian participates in and certifies compliance with the Data Privacy Framework. As required by the Data Privacy Framework, Atlassian (i) provides at least the same level of privacy protection as is required by the Data Privacy Framework Principles; (ii) will notify Customer if Atlassian makes a determination it can no longer meet its obligation to provide the same level of protection as is required by the Data Privacy Framework Principles, and (iii) will, upon written notice, take reasonable and appropriate steps to remediate any unauthorized Processing of Personal Data.
+
+2. United States of America
+
+The following terms apply where Atlassian Processes Personal Data subject to the US State Privacy Laws:
+
+2.1. To the extent Customer Personal Data includes personal information protected under US State Privacy Laws that Atlassian Processes as a Service Provider or Processor, on behalf of Customer, Atlassian will Process such Customer Personal Data in accordance with the US State Privacy Laws, including by complying with applicable sections of the US State Privacy Laws and providing the same level of privacy protection as required by US State Privacy Laws, and in accordance with Customer's Documented Instructions, as necessary for the limited and specified purposes identified in Section 6.1 of Schedule 1 (Description of Processing) of this DPA. Atlassian will not:
+
+(a) retain, use, disclose or otherwise Process such Customer Personal Data for a commercial purpose other than for the limited and specified purposes identified in this DPA, the Agreement, and/or any related Order, or as otherwise permitted under US State Privacy Laws;
+
+(b) "sell" or “share” such Customer Personal Data within the meaning of the US State Privacy Laws; and
+
+(c) retain, use, disclose or otherwise Process such Customer Personal Data outside the direct business relationship with Customer and not combine such Customer Personal Data with personal information that it receives from other sources, except as permitted under US State Privacy Laws.
+
+2.2. Atlassian must inform Customer if it determines that it can no longer meet its obligations under US State Privacy Laws.
+
+2.3. Customer may take reasonable and appropriate steps to stop and remediate any unauthorized Processing of Customer Personal Data.
+
+2.4. To the extent Customer discloses or otherwise makes available De-identified Data to Atlassian or to the extent Atlassian creates De-identified Data from Customer Personal Data, in each case in its capacity as a Service Provider, Atlassian will:
+
+(a) adopt reasonable measures to prevent such De-identified Data from being used to infer information about, or otherwise being linked to, a particular natural person or household;
+
+(b) publicly commit to maintain and use such De-identified Data in a de-identified form and to not attempt to re-identify the De-identified Data, except that Atlassian may attempt to re-identify such data solely for the purpose of determining whether its de-identification processes are compliant with the US State Privacy Laws; and
+
+(c) before sharing De-identified Data with any other party, including Sub-processors, contractors, or any other persons (“ Recipients ”), contractually obligate any such Recipients to comply with all requirements of this Section 2.4 (including imposing this requirement on any further Recipients).
+
+3. South Korea
+
+3.1. Customer agrees that it has provided notice and obtained all consents and rights necessary under South Korea Privacy Law for Atlassian to Process Personal Data pursuant to the Agreement.
+
+3.2. To the extent Customer discloses or otherwise makes available De-identified Data to Atlassian, Atlassian will:
+
+(a) maintain and use such De-identified Data in a de-identified form and not attempt to re-identify the De-identified Data; and
+
+(b) before sharing De-identified Data with any other party, including Sub-processors, contractors, or any other persons (“ Recipients ”), contractually obligate any such Recipients to comply with all requirements of this Section 3.2 (including imposing this requirement on any further Recipients).
+
+4. Brazil
+
+4.1. Where Personal Data protected by the Brazilian Data Protection Law is transferred, either directly or via onward transfer, to a country that does not provide an adequate level of protection within the meaning of the Brazilian Data Protection Law, the following applies:
+
+(a) the Brazilian Transfer Clauses are hereby incorporated into this DPA by reference as follows:
+
+(i) Each party shall be deemed to have signed the Brazilian Transfer Clauses.
+
+(ii) Customer is the “exporter” and Atlassian is the “importer”, as appropriate, for purposes of Clause 1 of the Brazilian Transfer Clauses.
+
+(iii) The contents of Schedule 1 (Description of Processing) of the DPA above shall form Clause 2 of the Brazilian Transfer Clauses.
+
+(iv) Option B for Clause 3 of the Brazilian Transfer Clauses shall apply, and the parties agree that any onward transfer of Personal Data subject to the Brazilian Data Protection Law by Atlassian will be carried out pursuant to a valid mechanism for data transfers provided for in the Brazilian Data Protection Law, such as the Brazilian Transfer Clauses.
+
+(v) With respect to Clause 4 of the Brazilian Transfer Clauses: (1) the parties select Option A for transfers where Customer is a Controller, and the parties agree that, except as otherwise provided for under the DPA above, the Agreement, and/or any related Order, Customer is responsible for the compliance obligations addressed in Clauses 4.1(a)-(c); and (2) the parties select Option B for transfers where both Customer and Atlassian are a Processor, and the relevant third-party Controller is as identified by the Customer.
+
+(vi) The information required for Section III of the Brazilian Transfer Clauses is located here .
+
+5. Definitions
+
+“ Brazilian Data Protection Law ” means the General Data Protection Law, Brazilian Law 13.709/2018.
+
+“ Brazilian Transfer Clauses ” means the standard contractual clauses approved by the Resolution CD/ANPD No. 19, August 23, 2024.
+
+“ De-identified Data ” means data that cannot reasonably be used to infer information about, or otherwise be linked to, any individual data subject.
+
+“ Data Privacy Framework ” means the EU-U.S. Data Privacy Framework, the UK Extension to the EU-U.S. Data Privacy Framework, and the Swiss-U.S. Data Privacy Framework self-certification program operated by the US Department of Commerce.
+
+“ Europe ” includes, for the purposes of this DPA, the Member States of the European Union and European Economic Area.
+
+“ EU Data Protection Law ” includes (i) the Regulation 2016/679 of the European Parliament and of the Council on the protection of natural persons with regard to the Processing of Personal Data and on the free movement of such data (General Data Protection Regulation, or GDPR) and (ii) the EU e-Privacy Directive (Directive 2002/58/EC) as amended, superseded or replaced from time to time.
+
+“ EU SCCs ” means the contractual clauses annexed to the European Commission's Implementing Decision 2021/914 of 4 June 2021 on standard contractual clauses for the transfer of Personal Data to third countries pursuant to Regulation (EU) 2016/679 of the European Parliament and of the Council, as amended, superseded, or replaced from time to time.
+
+“ Service Provider ” has the same meaning as given in the CCPA.
+
+“ South Korea Privacy Law ” means the South Korean Personal Information Protection Act and its Enforcement Decrees.
+
+“ Swiss Data Protection Law ” means the Swiss Federal Act on Data Protection and its implementing regulations as amended, superseded, or replaced from time to time.
+
+“ UK Addendum ” means the International Data Transfer Addendum to the EU Commission Standard Contractual Clauses issued by the UK Information Commissioner, Version B1.0, in force 21 March 2022, as amended, superseded or replaced from time to time.
+
+“ UK Data Protection Law ” means the Data Protection Act 2018 and the GDPR as saved into United Kingdom law by virtue of Section 3 of the United Kingdom's European Union (Withdrawal) Act 2018 as amended, superseded or replaced from time to time.
+
+“ US State Privacy Laws ” means all applicable state laws relating to the protection and Processing of Personal Data in effect in the United States of America, which may include, without limitation, the California Consumer Privacy Act, as amended by the California Privacy Rights Act, and its implementing regulations (“ CCPA ”).
+
+Frequently Asked Questions
+
+We created this FAQ to answer some of the most common questions customers ask about our DPA.
+
+Legal Notice: These FAQs are for informational purposes only and do not create any contractual commitments. The responsibilities and liabilities of Atlassian towards its customers are governed by Atlassian agreements, and these FAQs are not part of, nor do they modify, any agreement between Atlassian and its customers.
+
+How does the Atlassian DPA apply and what does it apply to? Copy link to heading Copied! show The DPA applies when Atlassian processes personal data in its capacity as a processor in connection with our Products and related Support and Advisory Services.
+
+The DPA applies automatically when your organization accepts the Atlassian Customer Agreement (ACA), so there is no need to separately sign the DPA.
+
+For information on Atlassian’s data practices as a controller of personal information (e.g. how we collect and process account information and profile information), please see Atlassian’s Privacy Policy .
+
+Why can’t Atlassian use my organization’s DPA? Copy link to heading Copied! show Our DPA is carefully and specifically drafted to reflect the manner in which Atlassian offers its products and services and maintains its privacy and security programs. We provide high-quality products to a large (300,000+) global customer base under a uniform compliance program. This means that we are unable to work from your organization’s DPA or operationalize individual customer-specific requirements.
+
+What if my organization prefers to have signed EU SCCs? Copy link to heading Copied! show The EU SCCs are incorporated by reference into the DPA and are effective automatically. It is not necessary to sign them. However, we understand that your organization may prefer to have a signed copy for your records. You can sign the EU SCCs by downloading a pre-signed copy of the SCCs applicable to Atlassian’s DPA here .
+
+What is the scope of the DPA? Copy link to heading Copied! show The DPA covers customers globally and sets out relevant legal obligations and commitments related to the processing of personal data.
+
+Most of the commitments in the DPA are general privacy commitments that are not specific to a particular region. To the extent you instruct Atlassian to process personal data from a region with additional requirements (e.g. EU SCCs), those requirements are outlined in the Region-Specific Terms in Schedule 2 of the DPA.
+
+How does Atlassian help organizations respond to data subject requests? Copy link to heading Copied! show Atlassian provides our customers with tools to assist them in meeting their obligations as it relates to data subject requests, including the right to deletion and the right to access.
+
+Information on our data management tools and processes can be found on this page .
+
+What is a sub-processor and does Atlassian use sub-processors? Copy link to heading Copied! show A sub-processor is a third party engaged by Atlassian who has or may have access to Customer Personal Data for the purpose of helping us provide our products and services to you. For example, we use Amazon Web Services data centers to assist us in hosting your data.
+
+Whenever we share Customer Personal Data with a sub-processor, we remain accountable to you for how it is used. We require all sub-processors to enter into data processing agreements with us to ensure that Customer Personal Data receives the same level of protection as set out in our DPA.
+
+Who are Atlassian’s sub-processors? Copy link to heading Copied! show Up to date information about our sub-processors is available our sub-processors page, along with a mechanism to sign up for notifications of new sub-processors. Atlassian will notify all subscribed customers of a new sub-processor before authorizing the new sub-processor to process Customer Personal Data.
+
+What are Atlassian’s security measures and where can I find them? Copy link to heading Copied! show Atlassian maintains appropriate technical and organizational measures to protect customer data. These are set out in the Atlassian Security Measures available here .
+
+For additional information on our security practices, see the dedicated security pages on our Trust Center: Security Practices and Atlassian Cloud architecture and operational practices .
+
+What transfer mechanisms does Atlassian use when transferring data from the EU/UK/Switzerland? Copy link to heading Copied! show Atlassian offers customers the following transfer mechanisms to facilitate the international transfer of personal data, which are incorporated in the Region-Specific Terms in Schedule 2 of the DPA:
+
+the EU Standard Contractual Clauses, including the UK International Data Transfer Addendum; and
+
+the EU-U.S. Data Privacy Framework and its extensions.
+
+Where can I find more information about Atlassian’s privacy program? Copy link to heading Copied! show Trust Center : Our internal privacy processes and procedures are documented transparently, on our Trust Center here .
+
+Data Transfer Impact Assessments : Information to help our customers conduct data transfer impact assessments in connection with their use of Atlassian's Products can be found here .
+
+Government requests : Atlassian publishes and follows Atlassian Guidelines for Law Enforcement Requests in responding to any government requests for data. Atlassian also publishes an annual Transparency Report with information about government requests to access data.
+
+Data residency : Atlassian allows you to manage where your data is hosted with data residency features. Information on data residency for Standard, Premium and Enterprise cloud subscriptions can be found here .
+
+Subscribe to receive an email whenever we make changes
+
+You’re logged in as:
+
+Update contact info >
+
+* Required fields
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Product-specific terms
+
+Learn more
+
+Data Transfer Impact Assessment
+
+Learn more
+
+Business Associate Agreement
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

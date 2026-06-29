@@ -1,0 +1,39 @@
+Privacy Policy
+Effective starting: August 17, 2026
+
+Your privacy matters to us. This privacy policy explains how Atlassian Pty Ltd, Atlassian US, Inc. and our corporate affiliates collect, use, share, and protect your information when you use our products, services, websites, or otherwise interact with us. We refer to all of these products, together with our other services and websites, as "Services" in this privacy policy.
+
+This privacy policy describes Atlassian's data practices as a controller of personal information. Please note that this privacy policy does not apply to the extent that we process personal information in the role of a processor or service provider on behalf of our customers, as further specified in the Data Processing Addendum entered into with those customers.
+
+Information we collect
+We collect information about you when you provide it to us, when you use our Services, and from other sources. Categories include account and profile information, content you provide through our products and websites, payment information, usage data, device and connection information, cookies and tracking technologies, and information from other sources including partners and third-party providers.
+
+How we use information
+We use information to provide the Services and personalize your experience; develop and improve our Services including machine learning and artificial intelligence model training; communicate with you; conduct marketing and promotional activities; provide customer support; maintain Service safety and security; protect our legitimate business interests and legal rights; with your consent; and to aggregate and/or de-identify data.
+
+How we disclose information
+We disclose information to service providers, Atlassian partners, third-party services you connect, affiliated companies, for compliance with laws and enforcement requests, in connection with business transfers, and to other Service users as described in this policy.
+
+How we store and secure information
+We use industry standard technical and organizational measures to secure the information we store. While we implement safeguards designed to protect your information, no security system is impenetrable.
+
+How long we keep information
+We retain account information for as long as your account is active and a reasonable period thereafter. After such time, we will either delete or de-identify your information or securely store and isolate it from further use until deletion is possible.
+
+How to access and control your information
+Where applicable under local law, you may have rights to request access, correction, deletion, restriction, portability, and to object to certain uses including marketing and targeted advertising.
+
+Regional disclosures — European Economic Area and United Kingdom
+If you are in the EEA or UK, we process information only where we have legal bases under applicable data protection laws: contractual necessity, legitimate interests, consent, or legal obligation. You have rights of access, objection, rectification, erasure, restriction, portability, and to lodge a complaint with a supervisory authority.
+
+International transfers
+We may transfer information outside your country of residence. We use the Data Privacy Framework, standard contractual clauses, and other mechanisms to safeguard transfers from the EEA, UK, and Switzerland.
+
+U.S. State privacy disclosures
+We do not use or disclose sensitive personal information for purposes other than permitted under applicable law. U.S. residents may opt out of sales, sharing, and targeted advertising as described in this policy.
+
+Our policy towards children
+Our Services are not intended for use by anyone under the age of 16.
+
+How to contact us
+Atlassian Pty Ltd, c/o Atlassian US, Inc., 350 Bush Street, Floor 13, San Francisco, CA 94104. E-Mail: privacy@atlassian.com

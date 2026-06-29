@@ -251,28 +251,27 @@ async def route_contract(
     )
 
     last_error: Exception | None = None
-    for attempt in range(1, settings.compliance_llm_max_retries + 2):
-        try:
-            model = get_review_model(
-                temperature=settings.compliance_llm_temperature,
-                max_tokens=settings.review_plan_llm_max_tokens,
+    try:
+        model = get_review_model(
+            temperature=settings.compliance_llm_temperature,
+            max_tokens=settings.review_plan_llm_max_tokens,
+        )
+        result = await invoke_structured(
+            model,
+            ContractRoutingResult,
+            system=system_tpl,
+            user=user,
+        )
+        if contract_type_hint and result.contract_type == "unknown":
+            result = result.model_copy(
+                update={"contract_type": contract_type_hint.strip().lower()}
             )
-            result = await invoke_structured(
-                model,
-                ContractRoutingResult,
-                system=system_tpl,
-                user=user,
-            )
-            if contract_type_hint and result.contract_type == "unknown":
-                result = result.model_copy(
-                    update={"contract_type": contract_type_hint.strip().lower()}
-                )
-            return result, warnings
-        except FatalPipelineError:
-            raise
-        except Exception as exc:  # noqa: BLE001
-            last_error = exc
-            logger.warning("contract routing LLM attempt %s failed: %s", attempt, exc)
+        return result, warnings
+    except FatalPipelineError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        last_error = exc
+        logger.warning("contract routing LLM failed: %s", exc)
 
     warnings.append(
         f"Contract routing LLM failed ({last_error}); using lexical topic fallback."

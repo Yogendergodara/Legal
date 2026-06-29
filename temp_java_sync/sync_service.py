@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from pathlib import Path
 from typing import Any
 
 from document_core.schemas.chunk import DocumentKind, IngestRequest, IngestSectionInput, ListSectionsRequest
-from document_core.schemas.registry import RegisterContractRequest, RegisterPolicyRequest
-from document_core.schemas.taxonomy import normalize_categories
-from document_core.services.document_tag_priors import assess_policy_tag_quality
+from document_core.schemas.policy_sync import SyncPoliciesRequest
+from document_core.schemas.registry import RegisterContractRequest
+from document_core.services.policy_sync import (
+    policy_sync_input_from_dict,
+    sections_to_raw_text,
+    slug_policy_ref as _slug_ref,
+)
 from document_core.services.registry import stable_contract_document_id, stable_policy_document_id
 from review_agent.clients.document_client import DocumentMCPClient
 
@@ -19,11 +22,6 @@ ROOT = Path(__file__).resolve().parent
 FIXTURES = ROOT / "fixtures"
 POLICY_FIXTURES = FIXTURES / "policies"
 OUTPUTS = ROOT / "outputs"
-
-
-def _slug_ref(prefix: str, title: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", (title or prefix).lower()).strip("-")
-    return f"{prefix}-{slug}"[:96] or prefix
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -144,98 +142,22 @@ async def _ingest_policy_structured(
     policy_data: dict[str, Any],
     policy_ref: str | None = None,
 ) -> dict[str, Any]:
-    ref = policy_ref or policy_data["policy_ref"]
-    document_id = stable_policy_document_id(tenant_id, ref)
-    meta = dict(policy_data.get("metadata") or {})
-    meta.pop("categories", None)
-    meta.setdefault("policy_ref", ref)
-    existing = await client.get_policy_by_ref(tenant_id, ref)
-    if existing is not None:
-        await client.delete_policy(tenant_id, ref)
-    await client.register_policy(
-        RegisterPolicyRequest(
+    payload = dict(policy_data)
+    if not payload.get("document_id"):
+        ref = policy_ref or payload.get("policy_ref")
+        if ref:
+            payload["document_id"] = str(stable_policy_document_id(tenant_id, ref))
+    payload.pop("policy_ref", None)
+    source = str((policy_data.get("metadata") or {}).get("source") or "dev-ui-policies")
+    response = await client.sync_policies(
+        SyncPoliciesRequest(
             tenant_id=tenant_id,
-            policy_ref=ref,
-            title=policy_data["title"],
-            document_id=document_id,
+            policies=[policy_sync_input_from_dict(payload)],
+            replace_policies=False,
+            source=source,
         )
     )
-    if policy_data.get("sections"):
-        sections = [
-            IngestSectionInput(
-                section_id=str(s["section_id"]),
-                title=str(s.get("title") or ""),
-                text=str(s["text"]),
-            )
-            for s in policy_data["sections"]
-        ]
-        ingest = IngestRequest(
-            tenant_id=tenant_id,
-            document_id=document_id,
-            title=policy_data["title"],
-            kind=DocumentKind.POLICY,
-            policy_type=policy_data.get("policy_type"),
-            sections=sections,
-            metadata=meta,
-        )
-    else:
-        ingest = IngestRequest(
-            tenant_id=tenant_id,
-            document_id=document_id,
-            title=policy_data["title"],
-            kind=DocumentKind.POLICY,
-            policy_type=policy_data.get("policy_type"),
-            text=str(policy_data["text"]),
-            metadata=meta,
-        )
-    result = await client.index_policy(ingest)
-    record = await client.get_policy_by_ref(tenant_id, ref)
-    cats: list[str] = []
-    tagger = "keyword"
-    if record is not None:
-        cats = normalize_categories((record.metadata or {}).get("categories"))
-        tagger = str((record.metadata or {}).get("tagger") or tagger)
-    sections = await client.list_sections(
-        ListSectionsRequest(
-            tenant_id=tenant_id,
-            document_id=document_id,
-            kind=DocumentKind.POLICY,
-        )
-    )
-    section_cats = [
-        normalize_categories((section.metadata or {}).get("categories"))
-        for section in sections
-    ]
-    tag_warnings = assess_policy_tag_quality(
-        document_title=policy_data["title"],
-        section_categories=section_cats,
-        tagger=tagger,
-        document_union=cats,
-    )
-    merged_warnings = list(result.warnings or []) + tag_warnings
-    policy_result = _policy_result(
-        policy_ref=ref,
-        document_id=str(document_id),
-        ingest_result=result,
-        categories=cats,
-    ) | {"auto_tagged": True, "tagger": tagger, "title": policy_data["title"]}
-    policy_result["warnings"] = merged_warnings
-    return policy_result
-
-
-def sections_to_raw_text(sections: list[dict[str, Any]]) -> str:
-    """Flatten structured sections into one document string (Java PDF-extract style)."""
-    parts: list[str] = []
-    for section in sections:
-        title = str(section.get("title") or "").strip()
-        text = str(section.get("text") or "").strip()
-        if not text:
-            continue
-        if title:
-            parts.append(f"{title}\n{text}")
-        else:
-            parts.append(text)
-    return "\n\n".join(parts)
+    return response.policies[0].model_dump(mode="json")
 
 
 async def sync_policies_only(
@@ -245,59 +167,16 @@ async def sync_policies_only(
     policies: list[dict[str, Any]],
     replace_policies: bool = False,
 ) -> dict[str, Any]:
-    """Index tenant playbooks from raw policy text (no contract)."""
-    tombstoned: list[str] = []
-    if replace_policies:
-        tombstoned = await tombstone_tenant_policies(client, tenant_id)
-
-    results: list[dict[str, Any]] = []
-    for index, policy in enumerate(policies, start=1):
-        text = str(policy.get("text") or "").strip()
-        if not text:
-            continue
-        ref = _slug_ref(f"playbook-{index}", policy.get("title") or f"policy-{index}")
-        policy_data = {
-            "tenant_id": tenant_id,
-            "policy_ref": ref,
-            "title": policy.get("title") or f"Policy {index}",
-            "policy_type": policy.get("policy_type") or "nda",
-            "metadata": {
-                "source": "dev-ui-policies",
-                "review_guidance": policy.get("review_guidance") or "",
-            },
-            "text": text,
-        }
-        results.append(
-            await _ingest_policy_structured(
-                client,
-                tenant_id=tenant_id,
-                policy_data=policy_data,
-                policy_ref=ref,
-            )
+    """Index tenant playbooks via document-mcp /tools/sync_policies."""
+    response = await client.sync_policies(
+        SyncPoliciesRequest(
+            tenant_id=tenant_id,
+            policies=[policy_sync_input_from_dict(p) for p in policies],
+            replace_policies=replace_policies,
+            source="dev-ui-policies",
         )
-
-    primaries = [p.get("categories", [""])[0] for p in results if p.get("categories")]
-    dupes = sorted({c for c in primaries if primaries.count(c) > 1})
-    weak_tag_policies = [
-        p.get("title") or p.get("policy_ref")
-        for p in results
-        if any(
-            "weak_tags" in w or "tagger=keyword" in w or w.startswith("unexpected_tags:")
-            for w in (p.get("warnings") or [])
-        )
-    ]
-    return {
-        "tenant_id": tenant_id,
-        "policies": results,
-        "tombstoned_policy_refs": tombstoned,
-        "preflight": {
-            "policies_synced": len(results),
-            "tombstoned_count": len(tombstoned),
-            "duplicate_primary_categories": dupes,
-            "weak_tag_count": len(weak_tag_policies),
-            "weak_tag_policies": weak_tag_policies,
-        },
-    }
+    )
+    return response.model_dump(mode="json")
 
 
 async def sync_fixture_policies(

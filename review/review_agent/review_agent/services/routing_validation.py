@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from document_core.schemas.compliance import ComplianceStatus, Severity
 from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.obligation_compare import ObligationCompareItem
@@ -23,6 +25,21 @@ def _ipc_item(
     )
 
 
+def _term_absent_from_obligation(
+    item: ObligationCompareItem,
+    obligation: ContractObligation,
+) -> bool:
+    """NC on a policy term that does not appear in the obligation span → false gap."""
+    dim = (item.dimension_label or "").strip()
+    if item.status != ComplianceStatus.NON_COMPLIANT or not dim:
+        return False
+    match = re.search(r"definition of\s+(.+)$", dim, re.IGNORECASE)
+    term = (match.group(1) if match else dim).strip().strip('"').lower()
+    if len(term) < 4:
+        return False
+    return term not in (obligation.text or "").lower()
+
+
 def validate_obligation_compare_items(
     items: list[ObligationCompareItem],
     *,
@@ -42,12 +59,18 @@ def validate_obligation_compare_items(
                 rejected += 1
                 continue
 
+        if obligation and _term_absent_from_obligation(item, obligation):
+            validated.append(_ipc_item(item, reason="unused_policy_term"))
+            rejected += 1
+            continue
+
         candidates = candidate_doc_ids_by_obligation.get(item.obligation_id, set())
         policy_id = str(item.policy_document_id or "").strip()
         if (
             policy_id
             and candidates
             and policy_id not in candidates
+            and policy_id not in allowed_doc_ids
             and item.status in (ComplianceStatus.COMPLIANT, ComplianceStatus.NON_COMPLIANT)
         ):
             validated.append(_ipc_item(item, reason="no_invented_policies"))

@@ -77,6 +77,11 @@ def obligation_items_to_findings(
         }
         if hints and hints.policy_ref:
             metadata["policy_ref"] = hints.policy_ref
+        if item.status in (
+            ComplianceStatus.COMPLIANT,
+            ComplianceStatus.NON_COMPLIANT,
+        ) and (item.contract_quote or item.policy_quote):
+            metadata["quote_validated_at_compare"] = True
 
         findings.append(
             ComplianceFinding(

@@ -1,0 +1,207 @@
+Effective starting: October 7, 2025
+
+Here at Atlassian, our goal is to help you and your team do the best work of your lives, every day. To do this, we need to keep our products and services running smoothly, quickly, and without distraction. For this to happen, we need help from you, our users. We need you not to misuse or abuse our products and services.
+
+To describe exactly what we mean by “misuse” or “abuse” – and help us identify such transgressions and react accordingly – we’ve created this Acceptable Use Policy. Under this policy, we reserve the right to take action if we see objectionable content that is inconsistent with the spirit of the guidelines, even if it’s something that is not forbidden by the letter of this policy. In other words, if you do something that isn’t listed here verbatim, but it looks or smells like something listed here, we may still take action.
+
+You’ll see the word “services” a lot throughout this page. That refers to all products and websites owned or operated by Atlassian, and any related websites, sub-domains and pages, as well as any cloud services operated by Atlassian.
+
+Use your judgment, and let’s be kind to each other so we can keep creating great things. You can find all the legal fine print at the bottom of this page.
+
+Here’s what we won’t allow:
+
+Disruption
+
+Compromising the security or operation of our systems. This could include probing, scanning, or testing the vulnerability of any system or network that hosts our services. This prohibition does not apply to security assessments expressly permitted by Atlassian
+
+Tampering with, reverse-engineering, or hacking our services, circumventing any security or authentication measures, or attempting to gain unauthorized access to the services, related systems, networks, or data
+
+Modifying, disabling, or compromising the integrity or performance of the services or related systems, network or data
+
+Deciphering any transmissions to or from the servers running the services
+
+Overwhelming or attempting to overwhelm our infrastructure by imposing an unreasonably large load on our systems that consumes extraordinary resources (CPUs, memory, disk space, bandwidth, etc.), such as: Using “robots,” “spiders,” “offline readers,” or other automated systems to send more request messages to our servers than a human could reasonably send in the same period of time by using a normal browser
+
+Going far beyond the use parameters for any given service as described in its corresponding documentation
+
+Consuming an unreasonable amount of storage for music, videos, or other content in a way that’s unrelated to the purposes for which the services were designed
+
+Wrongful activities
+
+Misrepresentation of yourself, or disguising the origin of any content (including by “spoofing”, “phishing”, manipulating headers or other identifiers, impersonating anyone else, or falsely implying any sponsorship or association with Atlassian or any third party)
+
+Using the services to violate the privacy of others, including publishing or posting other people's private and confidential information without their express permission, collecting or gathering other people’s personal information (including account names or information) from our services, or inferring characteristics or personal information (including sensitive information) about other people using our services
+
+Using our services to stalk, track, or monitor others or harass, bully, intimidate, or post direct, specific threats or acts of violence (including terrorism) against others
+
+Using the services in furtherance of any illegal purpose, or in violation of any laws (including without limitation data, privacy, and export control laws)
+
+Accessing or searching any part of the services by any means other than our publicly supported interfaces (for example, “scraping”)
+
+Using meta tags or any other “hidden text” including Atlassian’s or our suppliers’ product names or trademarks
+
+Using the services for the purpose of providing alerts on disaster scenarios or any other situations directly related to health or safety, including but not limited to acts of terrorism, natural disasters, or emergency response
+
+Using the services to engage in, promote or facilitate practices or behaviors that could lead to discriminatory, unfair or harmful treatment of individuals or groups of people, particularly on the basis of sensitive or protected attributes or characteristics
+
+Inappropriate communications
+
+Using the services to generate or send chain letters or spam
+
+Soliciting our users for commercial purposes, unless expressly permitted by Atlassian
+
+Disparaging Atlassian or our partners, vendors, or affiliates
+
+Promoting or advertising products or services other than your own without appropriate authorization
+
+Inappropriate content
+
+Posting, uploading, sharing, submitting, using the services to generate, facilitate, promote, or otherwise provide content that:
+
+Violates or infringes Atlassian’s or a third party’s intellectual property or other rights, including any copyright, trademark, patent, trade secret, moral rights, privacy rights of publicity, or any other intellectual property right or proprietary or contractual right, or where we receive notice of alleged violation or infringement in accordance with our Reporting Guidelines
+
+You don’t have the right to submit
+
+Is false, misleading, deceptive, fraudulent, illegal, obscene, defamatory, libelous, threatening, harmful, sexually explicit (including child sexual abuse or exploitation material, which we will remove and report to law enforcement and the National Center for Missing and Exploited Children), indecent, harassing, or hateful
+
+Depicts or encourages serious harm or any form of violent, illegal, terrorist, tortious, fraudulent, malicious, or dangerous conduct
+
+Attacks or discriminates against others based on their race, ethnicity, national origin, religion, sex, gender, sexual orientation, disability, medical condition, or other similar status
+
+Contains viruses, bots, worms, scripting exploits, or other similar materials
+
+Is intended to be inflammatory
+
+Could otherwise cause injury, damage, death, or credible risk of harm to Atlassian, the services, its users, or any third party
+
+Has been previously removed for violating this policy
+
+Artificial intelligence offerings and features
+
+When you use any of our artificial intelligence offerings and features, such as Rovo and Loom AI, we also won’t allow any use of those services to:
+
+Seek or provide advice that would ordinarily be provided by a qualified or licensed professional, including legal, medical/health, financial or other professional advice of any kind
+
+Make automated decisions with legal or similarly significant effects, including in any domains that may affect an individual’s rights, safety, health or well-being (for example, in the domains of finance, credit, insurance, employment, housing, education, essential services, law or law enforcement, migration, management of critical infrastructure, judicial proceedings or social scoring)
+
+Engage in activities classified as prohibited or high-risk use under the laws of the countries that apply to your use and any output you generate, including, for example, (i) to infer the emotions of an individual in workplace and educational settings, (ii) to categorize individuals using their biometric data to deduce or infer sensitive attributes (for example, race or political opinions), or (iii) to evaluate or classify individuals based on their social behavior or personal characteristics in a way that leads to detrimental or unfavorable treatment
+
+Engage in political campaigning or lobbying, including generating campaign materials to influence a political process, or to interfere with participation in electoral, democratic or civic processes
+
+Mislead individuals into believing that they are communicating with a human when they are not, or claim that content generated through our artificial intelligence offerings and features was generated by a human
+
+When using our artificial intelligence offerings and features, we consider it a violation of this policy if you use those services to:
+
+Seek to override or circumvent the technical or safety measures designed to safeguard our services, including, for example, by using techniques such as prompt injection and jailbreaking, or intentionally prompt our services to act in a manner that violates this policy
+
+Depict or impersonate any other individual or organization without their consent, authorization or legal right to do so
+
+Engage in, generate or promote disinformation, misinformation, false online engagement (such as fake reviews), plagiarism or academic dishonesty
+
+Engage in erotic, romantic or sexually explicit chat with any of our artificial intelligence offerings and features
+
+In this Acceptable Use Policy, the term “ content ” means: (i) any information, data, text, software, code, scripts, music, audio, sound, images, graphics, videos, recordings, messages, tags, interactive features, or other materials that you create, post, upload, share, submit, or otherwise provide in any manner to the services and (ii) any other materials, content, or data you provide to Atlassian or use with the services. “ Content ” also includes submissions by others that you authorized or facilitated to use the services.
+
+Atlassian reserves the right to interpret the guidelines and take (or refrain from taking) action in its discretion. Without affecting any other remedies available to us, Atlassian may permanently or temporarily remove or disable access to unacceptable content or terminate or suspend a user’s account or access to the services, without notice or liability if Atlassian (in its discretion) determines that a user has violated this Acceptable Use Policy. You agree to cooperate with us to investigate and remedy any violation.
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Product-specific terms
+
+Learn more
+
+Advisory Services
+
+Learn more
+
+Data Processing Addendum
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

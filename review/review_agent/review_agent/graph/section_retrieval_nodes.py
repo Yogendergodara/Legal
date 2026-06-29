@@ -40,7 +40,7 @@ async def section_policy_retrieval_node(
         or state.get("discovered_policy_document_ids")
         or []
     )
-    classifications = await classify_all_sections(
+    classifications, classify_stats = await classify_all_sections(
         sections,
         contract_type=state.get("contract_type"),
         settings=settings,
@@ -161,6 +161,9 @@ async def section_policy_retrieval_node(
     reranker_cross_encoder_sections = 0
     reranker_lexical_fallback_sections = 0
     reranker_off_sections = 0
+    category_filter_blocked = 0
+    scope_fallback_sections = 0
+    retry_recovered_sections = 0
     for section_id, bundle in bundles.items():
         meta = bundle.retrieval_meta or {}
         path_totals["dense"] += int(meta.get("dense_count") or 0)
@@ -171,11 +174,23 @@ async def section_policy_retrieval_node(
             retry_sections += 1
         if meta.get("skipped_reason") == "boilerplate":
             continue
+        if meta.get("category_filter_miss") or meta.get("category_filter_skipped") == (
+            "scope_fallback_on_category_miss"
+        ):
+            category_filter_blocked += 1
+        if meta.get("category_filter_skipped") == "scope_fallback_on_category_miss":
+            scope_fallback_sections += 1
         if not bundle.policy_hits:
             zero_hit_sections += 1
             failed_sections.append(zero_hit_failed_entry(section_id))
         if attempts:
             max_attempts_used = max(max_attempts_used, len(attempts))
+            if (
+                len(attempts) > 1
+                and bundle.policy_hits
+                and int(attempts[0].get("final_count") or 0) == 0
+            ):
+                retry_recovered_sections += 1
         used = meta.get("reranker_used")
         if used == "cross_encoder":
             reranker_cross_encoder_sections += 1
@@ -200,6 +215,7 @@ async def section_policy_retrieval_node(
         "failed_sections": failed_sections,
         "compliance_stats": {
             **dict(state.get("compliance_stats") or {}),
+            **classify_stats,
             "sections_retrieved": len(bundles),
             "classify_boilerplate_skipped": boilerplate_skipped,
             "classify_general_blocked": general_blocked,
@@ -208,6 +224,9 @@ async def section_policy_retrieval_node(
             "retrieval_retry_sections": retry_sections,
             "retrieval_zero_hit_sections": zero_hit_sections,
             "retrieval_max_attempts_used": max_attempts_used,
+            "retrieval_category_filter_blocked": category_filter_blocked,
+            "retrieval_scope_fallback_sections": scope_fallback_sections,
+            "retrieval_retry_recovered_sections": retry_recovered_sections,
             "reranker_cross_encoder_sections": reranker_cross_encoder_sections,
             "reranker_lexical_fallback_sections": reranker_lexical_fallback_sections,
             "reranker_off_sections": reranker_off_sections,

@@ -1,0 +1,27 @@
+{
+  "baseline_id": "atlassian_v1",
+  "contract": "Atlassian Customer Agreement",
+  "captured_at": "2026-06-01",
+  "notes": "Pre-Phase-B reference run (~80 obligations, 9 indexed policies). Refresh via run_atlassian_review.py when violations >= 6.",
+  "ipc_notes": "0.9 IPC with 34 queued is healthy pre-IPC-2; 0.50-0.65 is aspirational after IPC-2 retrieval improvement",
+  "min_violations": 6,
+  "metrics": {
+    "obligations_extracted": 80,
+    "compare_queued": 34,
+    "obligation_compare_llm_batches": 8,
+    "obligation_ipc_findings": 72,
+    "obligation_compare_count": 8,
+    "obligation_ipc_rate": 0.9,
+    "llm_rate_limit_events": 51,
+    "violations_nc": 6,
+    "routing_planner_calls": 0,
+    "review_wall_ms": 1680000
+  },
+  "skip_by_reason_top5": {
+    "routing_or_skip": 41,
+    "low_relevance_score": 2,
+    "evidence_sufficient": 34,
+    "low_concept_overlap": 1,
+    "planner_fallback": 1
+  }
+}

@@ -18,12 +18,27 @@ from uuid import uuid4
 
 
 def test_check_llm_credentials_missing(monkeypatch):
+    from review_agent.config import get_settings
+
     monkeypatch.delenv("LLM_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_API_KEYS", raising=False)
+    monkeypatch.setenv("LLM_KEY_POOL_ENABLED", "false")
+    get_settings.cache_clear()
     with pytest.raises(ReviewPreflightError, match="LLM credentials"):
         check_llm_credentials()
+
+
+def test_check_llm_credentials_with_key_pool(monkeypatch):
+    from review_agent.config import get_settings
+
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
+    monkeypatch.setenv("LLM_KEY_POOL_ENABLED", "true")
+    monkeypatch.setenv("LLM_API_KEYS", "key-a,key-b")
+    get_settings.cache_clear()
+    check_llm_credentials()
 
 
 def test_check_llm_credentials_with_api_key(monkeypatch):
@@ -147,10 +162,31 @@ async def test_preflight_warns_general_only_policy(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_preflight_includes_config_advisory(monkeypatch):
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    client = AsyncMock(spec=DocumentMCPClient)
+    client.health = AsyncMock(return_value={"status": "ok", "db": "ok"})
+    monkeypatch.setattr(
+        "review_agent.services.review_preflight.check_mcp_search_metadata_capability",
+        AsyncMock(),
+    )
+    from review_agent.config import ReviewSettings
+
+    warnings = await run_review_preflight(
+        client,
+        tenant_id="demo",
+        settings=ReviewSettings(section_classify_mode="llm_only"),
+    )
+    assert any(w.startswith("config_advisory:warn:E1:") for w in warnings)
+
+
+@pytest.mark.asyncio
 async def test_preflight_rejects_stale_mcp_metadata_error(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "test-key")
 
     class _HealthResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 
@@ -171,6 +207,8 @@ async def test_preflight_probe_http_500_metadata(monkeypatch):
     monkeypatch.setenv("LLM_API_KEY", "test-key")
 
     class _HealthResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 

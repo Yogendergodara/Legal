@@ -40,12 +40,16 @@ async def main() -> int:
     contract_text = data["contract_text"]
     tenant = data.get("tenant_id", "e2e-demo")
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(900.0)) as http:
+    # PF-1A: align with validate_p5_golden.py — hybrid reviews can exceed 15 min until PF-1B
+    async with httpx.AsyncClient(timeout=httpx.Timeout(7200.0)) as http:
         health = await http.get("http://localhost:8090/api/health")
         print("health:", health.status_code, health.json().get("document_mcp", {}).get("db"))
 
         print(f"\n=== Sync {len(policies)} policies (tenant={tenant}) ===")
-        sync = await sync_policies(http, policies, tenant_id=tenant, replace=True)
+        sync = await sync_policies(http, policies, tenant_id=tenant)
+        if sync.get("tenant_id") != tenant:
+            print(f"FAIL: sync tenant {sync.get('tenant_id')!r} != {tenant!r}", file=sys.stderr)
+            return 1
         for p in sync.get("policies", []):
             print(f"  - {p.get('title', p.get('policy_ref'))}: {p.get('categories', [])} tagger={p.get('tagger')}")
 
@@ -78,7 +82,23 @@ async def main() -> int:
             violations = [f for f in findings if f.get("status") == "NON_COMPLIANT"]
             print(f"findings: {len(findings)} | non-compliant: {len(violations)}")
             print("assessment_paths:", out.get("assessment_paths"))
+            print("review_paths:", out.get("review_paths"))
             print("summary:", (out.get("summary_markdown") or out.get("output") or "")[:800])
+            if not use_platform:
+                if out.get("tenant_id") != tenant:
+                    print(
+                        f"FAIL: review tenant {out.get('tenant_id')!r} != {tenant!r}",
+                        file=sys.stderr,
+                    )
+                    return 1
+                review_paths = out.get("review_paths") or []
+                if "xecurify_nda_review_result.json" not in review_paths:
+                    print(f"FAIL: missing slugged review path in {review_paths}", file=sys.stderr)
+                    return 1
+                discovered = len(out.get("discovered_policy_document_ids") or [])
+                if discovered == 0:
+                    print("FAIL: 0 policies discovered — sync/review tenant mismatch?", file=sys.stderr)
+                    return 1
             for f in violations[:5]:
                 print(
                     f"  [{f.get('contract_section_id')}] {f.get('dimension_label')}: "

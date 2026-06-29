@@ -21,6 +21,7 @@ _UNCLEAR_STATUSES = frozenset(
     {ComplianceStatus.INCONCLUSIVE, ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT}
 )
 _UNCLEAR_CONFIDENCE_MAX = 0.5
+_COVERAGE_GATE_PREFIX = "Retrieved policies were not sufficiently on-topic"
 
 
 @dataclass
@@ -77,11 +78,23 @@ def section_items_to_findings(
                 )
 
         rationale = item.rationale or ""
-        if rationale.startswith("Section compare failed:"):
-            metadata["gap_type"] = "compare_failed"
+        if rationale.startswith(_COVERAGE_GATE_PREFIX):
+            metadata["gap_type"] = "coverage_gate_ipc"
+            metadata["source"] = "coverage_gate"
+        elif rationale.startswith("Section compare failed:"):
+            metadata["gap_type"] = (
+                "compare_failed"
+                if item.status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
+                else "compare_transient"
+            )
             metadata["source"] = "section_compare_failed"
         if QUOTE_VALIDATE_DOWNGRADE_MARKER in rationale:
             metadata["downgrade_source"] = "quote_validate"
+        if item.status in (
+            ComplianceStatus.COMPLIANT,
+            ComplianceStatus.NON_COMPLIANT,
+        ) and (item.contract_quote or item.policy_quote):
+            metadata["quote_validated_at_compare"] = True
 
         findings.append(
             ComplianceFinding(
@@ -246,10 +259,22 @@ def merge_section_findings(
     if unclear_ids:
         warnings.append(f"{len(unclear_ids)} finding(s) marked unclear for final verify.")
     if unclear_ids and len(recompare_ids) < len(unclear_ids):
-        skipped = len(unclear_ids) - len(recompare_ids)
-        warnings.append(
-            f"{skipped} unclear finding(s) skipped for re-compare (not low-confidence playbook compare)."
+        gap_routed = sum(
+            1
+            for f in merged
+            if f.finding_id in unclear_ids and classify_unclear_finding(f) == "gap_context"
         )
+        ineligible = len(unclear_ids) - len(recompare_ids) - gap_routed
+        if gap_routed:
+            warnings.append(
+                f"{gap_routed} unclear finding(s) routed to gap verify "
+                f"(no_policy / compare_omitted)."
+            )
+        if ineligible:
+            warnings.append(
+                f"{ineligible} unclear finding(s) not eligible for re-compare "
+                f"(IPC topic mismatch, contract silent, or missing policy context)."
+            )
     conflict_pairs = _collect_conflicts(merged)
     if conflict_pairs:
         warnings.append(f"{len(conflict_pairs)} cross-section status conflict(s) detected.")

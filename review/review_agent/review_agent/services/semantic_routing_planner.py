@@ -11,6 +11,7 @@ from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.routing_plan import BatchRoutingPlanResult, ObligationRoutingPlan
 from review_agent.services.catalog_registry import CatalogEntry
 from review_agent.services.routing_cache import get_cached_plan, plan_cache_key, set_cached_plan
+from review_agent.services.quote_validate import truncate_section
 from review_agent.services.routing_limits import increment_planner_calls, planner_calls
 from review_agent.observability import metrics
 
@@ -36,7 +37,7 @@ def _policy_titles_block(catalog_entries: list[CatalogEntry]) -> str:
 def _obligations_block(obligations: list[ContractObligation], max_chars: int) -> str:
     blocks: list[str] = []
     for ob in obligations:
-        text = (ob.text or "")[:max_chars]
+        text = truncate_section(ob.text or "", max_chars)
         mentions = ", ".join(ob.explicit_policy_mentions) or "[]"
         blocks.append(
             f"### {ob.obligation_id}\n"
@@ -47,18 +48,35 @@ def _obligations_block(obligations: list[ContractObligation], max_chars: int) ->
     return "\n".join(blocks)
 
 
-def _fallback_plan(ob: ContractObligation) -> ObligationRoutingPlan:
+def _apply_planner_confidence_floor(
+    ob: ContractObligation,
+    confidence: float,
+    settings: ReviewSettings,
+) -> float:
+    """PR-06 — obligations citing a named policy must not planner-IPC at ≤0.3."""
+    if ob.explicit_policy_mentions and confidence < settings.routing_planner_explicit_mention_confidence_floor:
+        return settings.routing_planner_explicit_mention_confidence_floor
+    return confidence
+
+
+def _fallback_plan(
+    ob: ContractObligation,
+    *,
+    settings: ReviewSettings | None = None,
+) -> ObligationRoutingPlan:
+    cfg = settings or get_settings()
     words = (ob.text or "").split()[:12]
     query = " ".join(words).strip() or ob.obligation_type or "contract obligation"
+    fallback_confidence = min(0.65, max(cfg.routing_ipc_max_confidence + 0.05, 0.61))
     return ObligationRoutingPlan(
         obligation_id=ob.obligation_id,
         intent=query,
         concepts=[ob.obligation_type] if ob.obligation_type else [],
         search_queries=[query],
         explicit_policy_mentions=list(ob.explicit_policy_mentions),
-        confidence=0.5,
-        reasoning="planner fallback",
-        routing_source="llm",
+        confidence=fallback_confidence,
+        reasoning="planner fallback (cap exceeded or LLM error)",
+        routing_source="planner_fallback",
     )
 
 
@@ -96,7 +114,7 @@ async def plan_obligation_routing(
             and planner_calls() >= cfg.max_planner_calls_per_review
         ):
             for ob in batch:
-                plans[ob.obligation_id] = _fallback_plan(ob)
+                plans[ob.obligation_id] = _fallback_plan(ob, settings=cfg)
             continue
         increment_planner_calls()
         metrics.record_routing_planner_call()
@@ -120,7 +138,7 @@ async def plan_obligation_routing(
             for ob in batch:
                 item = by_id.get(ob.obligation_id)
                 if item is None:
-                    plans[ob.obligation_id] = _fallback_plan(ob)
+                    plans[ob.obligation_id] = _fallback_plan(ob, settings=cfg)
                     continue
                 plans[ob.obligation_id] = ObligationRoutingPlan(
                     obligation_id=ob.obligation_id,
@@ -128,7 +146,11 @@ async def plan_obligation_routing(
                     concepts=[c.strip() for c in item.concepts if str(c).strip()],
                     search_queries=[q.strip() for q in item.search_queries if str(q).strip()],
                     explicit_policy_mentions=list(ob.explicit_policy_mentions),
-                    confidence=float(item.confidence),
+                    confidence=_apply_planner_confidence_floor(
+                        ob,
+                        float(item.confidence),
+                        cfg,
+                    ),
                     reasoning=(item.reasoning or "").strip(),
                     routing_source="llm",
                 )
@@ -142,6 +164,6 @@ async def plan_obligation_routing(
         except Exception as exc:  # noqa: BLE001
             logger.warning("semantic routing planner LLM failed for batch: %s", exc)
             for ob in batch:
-                plans[ob.obligation_id] = _fallback_plan(ob)
+                plans[ob.obligation_id] = _fallback_plan(ob, settings=cfg)
 
     return plans

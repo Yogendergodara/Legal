@@ -16,6 +16,8 @@ async def test_post_reuses_shared_client() -> None:
     calls: list[str] = []
 
     class _FakeResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 
@@ -34,6 +36,38 @@ async def test_post_reuses_shared_client() -> None:
     await client.search_policy(request)
     assert len(calls) == 2
     assert all(call.startswith("POST:") for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_persistent_client_uses_configured_pool_limits(monkeypatch: pytest.MonkeyPatch) -> None:
+    from review_agent.config import ReviewSettings, get_settings
+
+    captured: list[httpx.Limits] = []
+    original_init = httpx.AsyncClient.__init__
+
+    def _capture_limits(self: httpx.AsyncClient, *args: object, **kwargs: object) -> None:
+        limits = kwargs.get("limits")
+        if isinstance(limits, httpx.Limits):
+            captured.append(limits)
+        original_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "__init__", _capture_limits)
+    monkeypatch.setattr(
+        "review_agent.config.get_settings",
+        lambda: ReviewSettings(
+            mcp_http_max_keepalive_connections=40,
+            mcp_http_max_connections=100,
+        ),
+    )
+    client = DocumentMCPClient("http://mcp.test")
+    try:
+        assert len(captured) == 1
+        limits = captured[0]
+        assert limits.max_keepalive_connections == 40
+        assert limits.max_connections == 100
+    finally:
+        await client.aclose()
+    get_settings.cache_clear()
 
 
 @pytest.mark.asyncio
@@ -81,6 +115,8 @@ async def test_post_retries_on_connect_error(monkeypatch: pytest.MonkeyPatch) ->
     attempts = {"n": 0}
 
     class _FakeResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 
@@ -108,6 +144,8 @@ async def test_post_retries_on_connect_error(monkeypatch: pytest.MonkeyPatch) ->
 @pytest.mark.asyncio
 async def test_probe_search_metadata_capability_stale_capability() -> None:
     class _HealthResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 

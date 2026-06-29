@@ -145,3 +145,20 @@ def test_lexical_full_body_short_section() -> None:
     result = infer_lexical_classify(section, full_body_max_chars=4000)
     assert "indemnity" in result.categories
 
+
+def test_body_compliance_dropped_without_code_of_conduct() -> None:
+    section = _section(
+        "5",
+        "Recipient shall comply with export control and anti-corruption laws of all jurisdictions.",
+    )
+    result = infer_lexical_classify(section)
+    assert "compliance" not in result.categories
+
+
+def test_body_compliance_kept_with_code_of_conduct() -> None:
+    section = _section(
+        "Code of Conduct",
+        "Recipient shall comply with the supplier code of conduct and related standards.",
+    )
+    result = infer_lexical_classify(section)
+    assert "compliance" in result.categories

@@ -1,0 +1,323 @@
+Effective starting: November 10, 2025 (unless otherwise indicated below)
+
+The following Product-Specific Terms apply to the Products and offerings specified below and supplement the Atlassian Customer Agreement or another agreement entered between Customer and Atlassian (the “ Agreement ”). Capitalized terms used and not defined in the Product-Specific Terms have the meanings given to them in the Agreement.
+
+The table below specifies the Atlassian contracting entity for each of the Products and offerings, which is “Atlassian” for purposes of the relevant terms, the Agreement and any associated Orders, and links applicable terms for the Products and offerings.
+
+Product(s) or offering(s)
+
+Atlassian Contracting Entity
+
+Applicable Terms
+
+All Products not named elsewhere in this table, including Confluence and Jira*
+
+Atlassian Pty Ltd
+
+Here
+
+DX
+
+A Software Company
+
+Here
+
+Jira Align
+
+AgileCraft LLC
+
+Here
+
+Loom
+
+Loom, Inc.
+
+Here
+
+Opsgenie
+
+OpsGenie, Inc.
+
+Here
+
+Statuspage
+
+Dogwood Labs, Inc., d/b/a StatusPage.io
+
+Here
+
+Trello
+
+Trello, Inc.
+
+Here
+
+AI Offerings
+
+Atlassian Pty Ltd and, for Loom AI, Loom, Inc.
+
+AI Terms
+
+* Halp functionality is now part of Jira Service Management and may not be purchased separately. Any Customer with a standalone Halp subscription should refer to the Archives (below) for the governing Product-Specific Terms.
+
+Archived versions of the product-specific terms are available here , for Customers that purchased under the Atlassian Cloud Terms of Service or Software License Agreement, and here , for Customers that purchased under an Atlassian Subscription Agreement (or predecessor agreement).
+
+Atlassian Pty Ltd Products
+
+Effective starting: October 7, 2025
+
+1. Secondary Users . As described in the Documentation, certain of the Products may be used as part of Customer’s external support or similar resources related to its or its Affiliates’ own offerings. End users for such resources are Users under the Agreement. Customer must not permit such Users to use the Products for purposes unrelated to supporting its own offerings or grant such Users administrator, configuration or similar use of the Products.
+
+2. Additional Software Terms . For clarity, importing a back-up from an authorized production instance of one of the Products that is a Software Product into an authorized staging environment of such Software Product does not itself violate the requirement in the “Number of Instances” Section of the Agreement. Atlassian may also make available “developer” licenses for certain of such Software Products to allow Customer to deploy non-production instances, such as for staging or QA purposes.
+
+3. Additional Bitbucket Cloud Terms . The following additional terms apply to Bitbucket Cloud.
+
+3.1. Repositories . Customer Data uploaded to Bitbucket Cloud is stored in “repositories.” Customer must designate whether the repositories are public (meaning that anyone coming to the Bitbucket website can view them) or private (meaning that access to those repositories will be limited to those who have permission to access the repositories). For each public repository that Customer maintains, Customer must indicate the license under which Customer is making the contents of the repository available to others, as well as the license under which Customer will accept contributions to the repository.
+
+3.2. Storage Rules . The Documentation specifies pre-defined storage limits for Customer Data. For clarity, Atlassian may enforce those limits in accordance with the Agreement and the Acceptable Use Policy . Similarly, Atlassian may remove Customer Data from Bitbucket Cloud under the Agreement and Acceptable Use Policy where that content is consuming an unreasonable amount of storage in a way that is unrelated to Bitbucket Cloud’s purpose as a source code repository (for instance, music, abhorrent content, videos or pornography). Since Atlassian does not maintain access to Customer’s repositories, any removal of Customer Data by Atlassian means removal of the entire repository in which the offending data resides, not just the offending portions.
+
+3.3. Accessing Repositories . If Customer is accessing code in a third party’s repository, Customer should carefully read all the licenses applicable to that repository before using or contributing any code. Atlassian is not the licensor of any third-party code made available through Bitbucket and is not responsible for the use or contents of such code .
+
+3.4. Granting Permissions . When Customer grants permissions to its repositories, Atlassian will not be able to prevent the applicable users from taking the actions allowed under those permissions, even if Customer does not approve of those actions. Some of these actions may be irreversible. For example, if Customer grants someone permission that allows them to move data in Customer’s repository to another account, Atlassian will not be able to recover the data without permission from the owner or administrator of the other account, as Atlassian is not in a position to arbitrate disputes among users. In that case, Customer’s only recourse may be requesting a takedown under the guidelines for Reporting Copyright and Trademark Violations or pursuing legal action against the other user directly. For clarity, submitting a takedown request does not grant Customer access to the moved data or mean Atlassian can transfer that data back to Customer’s repository.
+
+DX
+
+Effective starting: November 10, 2025
+
+1. Return Policy; Documentation; Security Measures. For purposes of DX:
+
+1.1. Return Policy. The “Return Policy” Section of the Agreement does not apply to DX.
+
+1.2. Documentation. “ Documentation ” means the content available at https://docs.getdx.com/ .
+
+1.3. Security Measures. “ Security Measures ” means the security measures described at https://getdx.com/security-measures/ .
+
+Jira Align
+
+Effective starting: April 9, 2025
+
+1. Interoperation with Third-Party Products . As an enterprise agility tool, Jira Align contains functionality or features designed to interoperate with, or that are contingent on access to or use of, other products, some of which may be provided by third parties. For clarity, Atlassian does not control and is not responsible for Customer’s use of any such Third-Party Products.
+
+2. Return Policy . If Customer exercises its rights under the “Return Policy” Section of the Agreement with respect to its initial Order of Jira Align, Atlassian will refund Customer any pre-paid, unused fees for Advisory Services for Jira Align purchased as part of such initial Order (and any corresponding Subscription Terms or consumption periods for such Advisory Services will be terminated).
+
+3. Service Level Agreement for Jira Align Cloud .
+
+3.1. Service Level Commitment . Atlassian must make Jira Align Cloud accessible to one or more Users at least 99.5% of the time during a calendar month (the “ Service Level Commitment ”).
+
+3.2. Service Credit Eligibility . To be eligible to receive a service credit for Atlassian’s failure to meet the Service Level Commitment, Customer must submit a ticket at https://support.atlassian.com with all fields fully and accurately completed within thirty (30) days after the end of the calendar month in which the alleged failure occurred and provide any other reasonably requested information or documentation. Atlassian’s monitoring and logging infrastructure is the sole source of truth for determining whether Atlassian has met the Service Level Commitment.
+
+3.3. Service Credit Issuance . If Atlassian confirms a failure to meet the Service Level Commitment, Atlassian will apply the service credit (calculated as described in the table below) against a future payment due from Customer for Jira Align, provided that Customer’s account is fully paid-up, without any overdue payments or disputes. No refunds or cash value will be given for unused service credits. Service credits may not be transferred or applied to any other Atlassian account or Product. The aggregate maximum service credit applied to an invoice will not exceed 100% of the amount invoiced for Jira Align in that invoice billing period (which, since service credits are applied to future payments, is not the month in which Jira Align was unavailable).
+
+Monthly Uptime Percentage*
+
+Service Credit (% of the monthly fees)**
+
+Less than 99.5% but greater than or equal to 98.0%
+
+5%
+
+Less than 98.0% but greater than or equal to 95.0%
+
+10%
+
+Less than 95.0%
+
+15%
+
+* The monthly uptime percentage is determined by subtracting from 100% the percentage of minutes that Jira Align did not meet the Service Level Commitment out of the total minutes in the relevant calendar month. All calendar months are measured in the UTC time zone.
+
+** The percentage of monthly fees attributable to Jira Align when purchased together with other Products under one SKU will be determined by Atlassian.
+
+3.4. Service Credits and Reseller Purchases . If Customer purchased Jira Align through a Reseller, (a) Customer or the Reseller may submit a ticket as specified above; and (b) any service credits will be based on the fees invoiced by Atlassian to the Reseller for Customer’s use of Jira Align under the Reseller’s applicable order(s) with Atlassian. Atlassian will issue any associated service credits to the Reseller (not directly to Customer), and the Reseller will be solely responsible for issuing the appropriate amounts to Customer.
+
+3.5. Exclusions . Customer is not entitled to a service credit if Customer is in breach of the Agreement or has not provisioned Jira Align. The Service Level Commitment does not include unavailability to the extent due to (a) Customer’s use of Jira Align in a manner not authorized under the Agreement; (b) force majeure events or other factors outside of Atlassian’s reasonable control, including internet access or related problems; (c) Customer equipment, software, network connections or other infrastructure; (d) Customer Data or Customer Materials (or similar concepts defined in the Agreement); (e) Third-Party Products; or (f) routine scheduled maintenance or reasonable emergency maintenance as stated in the Atlassian Maintenance Policy . The Service Level Commitment does not apply to (i) sandbox instances or Free or Beta Products (or similar concepts in the Agreement) or (ii) features excluded from the Service Level Commitment in the applicable Documentation.
+
+3.6. Exclusive Remedy . Service credits are Customer’s exclusive remedy and Atlassian’s entire liability for Atlassian’s failure to meet the Service Level Commitment.
+
+4. Support for Jira Align Software . If Customer uses Jira Align as a Software Product, Customer must remain on the most recent release or the immediately prior release of Jira Align. Prior releases are not supported.
+
+Loom
+
+Effective starting: October 7, 2025
+
+1. Support, Specific Policies, and Documentation . For purposes of Loom:
+
+1.1. Support Policy . “ Support Policy ” means the Loom support offerings documentation available here .
+
+1.2. Return Policy . The “Return Policy” Section of the Agreement does not apply to Loom.
+
+1.3. Documentation . “ Documentation ” means the content located here .
+
+1.4. “ Services. ” On any URL referenced in these Product-Specific Terms that is a child page of www.loom.com or www.loom.com/support , the term “Services” is replaced by the term “Loom.”
+
+Opsgenie
+
+Effective starting: April 1, 2024
+
+1. Intended Use . Opsgenie is not intended for providing alerts on disaster scenarios or any other situations directly related to health or safety, including but not limited to acts of terrorism, natural disasters, or emergency responses, and Customer must not use Opsgenie for any such purposes.
+
+2. Service Level Agreement for Opsgenie .
+
+2.1. Service Level Commitment . Atlassian must make Opsgenie available at least 99.9% of the time during a calendar month (the “ Service Level Commitment ”).
+
+2.2. Service Credit Eligibility . To be eligible to receive a service credit for Atlassian’s failure to meet the Service Level Commitment, Customer must open a case in the Opsgenie support center by the end of the second billing cycle after the cycle in which the incident occurred and provide the date and time of each alleged failure to meet the Service Level Commitment and any other reasonably requested information or documentation. Atlassian’s monitoring and logging infrastructure, which consists of both internal and third party services, is the sole source of truth for determining whether Atlassian has met the Service Level Commitment.
+
+2.3. Service Credit Issuance . If Atlassian confirms a failure to meet the Service Level Commitment, Atlassian will apply the service credit (calculated as described in the table below) against a future payment due from Customer for Opsgenie, provided that Customer’s account is fully paid up, without any overdue payments or disputes. No refunds or cash value will be given for unused service credits. A service credit will be issued only if the credit amount for the applicable calendar month is greater than one U.S. dollar ($1 USD). Service credits may not be transferred or applied to any other Atlassian account or Product. The aggregate maximum service credit applied to an invoice will not exceed 100% of the amount invoiced for Opsgenie in that invoice billing period (which, since service credits are applied to future payments, is not the month in which Opsgenie was Unavailable (as defined below)).
+
+Monthly Uptime Percentage*
+
+Service Credit (% of the monthly fees)
+
+Less than 99.9% but greater than or equal to 99.0%
+
+5%
+
+Less than 99% but greater than or equal to 97.0%
+
+10%
+
+Less than 97.0%
+
+20%
+
+* The monthly uptime percentage is determined by subtracting from 100% the percentage of Unavailable minutes out of the total minutes in the relevant calendar month. All calendar months are measured in the UTC time zone. “ Unavailable ” means that Opsgenie was not able to process incoming alerts and send notifications within five (5) minutes of receiving the alerts, according to the policies and notification rules defined by Customer within the Opsgenie service.
+
+2.4. Service Credits and Reseller Purchases . If Customer purchased Opsgenie through a Reseller, (a) Customer or the Reseller may open a case as specified above; and (b) any service credits will be based on the fees invoiced by Atlassian to the Reseller for Customer’s use of Opsgenie under the Reseller’s applicable order(s) with Atlassian. Atlassian will issue any associated service credits to the Reseller (not directly to Customer), and the Reseller will be solely responsible for issuing the appropriate amounts to Customer.
+
+2.5. Exclusions . Customer is not entitled to service credits if Customer is in breach of the Agreement or has not provisioned Opsgenie. The Service Level Commitment does not include unavailability to the extent due to: (a) Customer’s use of Opsgenie in a manner not authorized under the Agreement; (b) force majeure events or other factors outside of Atlassian’s reasonable control, including internet access or related problems; (c) Customer equipment, software, network connections or other infrastructure; (d) Customer Data or Customer Materials (or similar concepts defined in the Agreement); (e) Third-Party Products; or (f) routine scheduled maintenance. The Service Level Commitment does not apply to (i) sandbox instances or Free or Beta Products (or similar concepts in the Agreement) or (ii) features excluded from the Service Level Commitment in the applicable Documentation.
+
+2.6. Exclusive Remedy . Service credits are Customer’s exclusive remedy and Atlassian’s entire liability for Atlassian’s failure to meet the Service Level Commitment.
+
+Statuspage
+
+Effective starting: April 1, 2024
+
+1. Status Pages and Scope of Use.
+
+1.1. Status Pages . Statuspage enables Customer to create pages hosted by Atlassian that display both current and historical status and uptime information of Customer’s products and services, while also allowing Users to subscribe to status notifications (“ Status Pages ”). There are different types of Status Pages and different subscription plans for each of these page types. This includes Status Pages that are available to the public, meaning they are not confidential or private to Customer.
+
+1.2. Scope of Use . Customer’s Scope of Use (and the related fees) may vary depending on Status Page type and plan. See more information here .
+
+2. Status Page Configuration . As described in the Documentation, Customer may configure its Status Pages by including look and feel elements (like company brand or logo) and any links or permissions required to collect information from individuals (internal or external to Customer) who view a Status Page (“ Statuspage End Users ”) or for these individuals to acknowledge that they are subscribing to status notifications (collectively, “ Customer Configurations ”). Customer Configurations are “Customer Data” under the Agreement.
+
+3. Collection of Statuspage End User Information . As discussed above, Statuspage allows Customer to collect information from Statuspage End Users in order to send these end users status notifications. This may include email addresses and phone numbers. Statuspage End Users are Customer’s Users under the Agreement, and any information collected about Customer’s Statuspage End Users is “Customer Data” under the Agreement.
+
+Trello
+
+Effective starting: April 1, 2024
+
+1. Settings, Profile Information and Free Plans.
+
+1.1. Settings and Profile Information . Trello permits users to collaborate via workspaces, boards and cards and includes certain membership and privacy settings that may differ according to Customer’s Trello plan. These settings may include designating who can access or view Customer’s Trello workspaces, boards and cards. Customer is responsible for configuring these settings. For instance, where a workspace is “public,” it is available to the public, meaning it (and any Customer Data it contains) is not confidential or private to Customer. In addition, profile information within Trello (for instance, a User’s username, full name, avatar and bio) is available to the public.
+
+1.2. Free Plans . For clarity, the Subscription Term for free Trello plans continues until the applicable plan (and any associated workspace) is terminated.
+
+2. Account Activity . Atlassian may make boards “private” where Atlassian would otherwise have rights to limit access to or remove Customer Data or suspend access to Trello under the Agreement. Atlassian may create limits on use and storage at any time with or without notice for free Trello plans. If Customer’s plan is terminated, Atlassian may withdraw and reallocate the public web address of the corresponding workspace(s). Atlassian may also log off users who are inactive for an extended period of time.
+
+3. Power-Ups and Featured Power-Ups.
+
+3.1. Power-Ups . Atlassian may make available or provide links to optional tools and other features or services that Customer may enable for use with Trello, called “Power-Ups” (“ Power-Ups ”). Power-Ups may be provided by third parties (“ Third-Party Power-Ups ”) or by Atlassian (“ Trello Power-Ups ”). Third-Party Power-Ups are Third-Party Products, and Trello Power-Ups are Free or Beta Products. There may be limits on the number of Power-Ups Customer may use based on Customer’s applicable Trello plan. For certain Power-Ups, Customer must obtain a subscription to the third-party product or service integrated with Trello or pay a fee to enable the Third-Party Power-Up. Atlassian or the third-party provider of a Power-Up may update, modify or remove the Power-Up at any time. Atlassian does not make any promises or guarantees about future price, availability or functionality of Power-Ups.
+
+3.2. Featured Power-Ups . From time to time, Atlassian may feature certain Power-Ups more prominently than others on its website (for instance, by designating Power-Ups as “Featured,” “Essential” or “Taco’s Picks”). This may be based on popularity in the Trello community or positive user reviews. In so featuring a Power-Up, Atlassian does not endorse, or make any warranty or guarantee regarding, the Power-Up.
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Advisory Services
+
+Learn more
+
+Data Processing Addendum
+
+Learn more
+
+Data Transfer Impact Assessment
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

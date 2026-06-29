@@ -1,0 +1,141 @@
+Effective starting: April 1, 2024
+
+Download PDF
+
+This Government Amendment (this “ Amendment ”) modifies the Atlassian Customer Agreement or a written agreement executed by Atlassian (each, the “ Agreement ”) and applies to United States federal, state, and local government Customers (“ Government ”) only to address statutory restrictions that apply to the Agreement.
+
+The Government and Atlassian are together referred to as the “ Parties .” Accordingly, the Agreement is hereby modified as set forth below as it pertains to use by the Government. Atlassian may update or modify this Amendment from time to time as set forth in the Agreement.
+
+All capitalized terms used and not defined in this Amendment have the meanings given to them in the Agreement. Except as expressly set forth herein, all of the terms and conditions of the Agreement remain in full force and effect.
+
+1. Commercial Items
+
+The Products, Documentation, and related Support and Advisory Services are commercial in nature and available in the open marketplace. For U.S. federal Government Customers, the Products are "commercial computer software" as defined at 48 C.F.R. §§ 2.101 and 252.227-7014(a)(1) and as the term is used in 48 C.F.R §§ 12.212 and 227.7202; the related Support and Advisory Services are “commercial services” as defined in 48 C.F.R. § 2.101; and the Documentation is commercial “computer software documentation” as defined in 48 C.F.R. §§ 2.101 and 252.227-7014(a)(5) and as used in 48 C.F.R. §§ 12.212 and 227.7202. The Products, Documentation, and related Support and Advisory Services are provided to all Government Customers and Users, for use by the Government or on its behalf, subject to the terms of this Agreement, and all sales to U.S. federal Government Customers must be consistent with 48 C.F.R. §§12.212, 227.7202, and 252.227-7015, as applicable. The Products, Documentation, and related Support and Advisory Services are licensed to the Government with only those rights as granted to all other Customers and Users, according to the terms and conditions contained in the Agreement.
+
+2. Government Purpose
+
+Government’s use of Products, Documentation, and related Support and Advisory Services under the Agreement as amended herein must only be for a governmental purpose. Any private, personal, or non-governmental purposes are not subject to this Amendment.
+
+3. Liability, Statute of Limitations
+
+Claims and liabilities arising from the Agreement will be determined under the Contract Disputes Act, the Federal Tort Claims Act, or the equivalent governing state or local legal authority and procedure. Federal statute of limitations provisions or, if applicable, state statute of limitations, apply to any breach or claim.
+
+4. Governing Law
+
+Any terms regarding choice of law and venue in the Agreement are hereby waived. The Agreement and this Amendment are governed by, and interpreted and enforced in accordance with, the laws applicable to Government without reference to conflict of laws. The laws of the State of California will apply in the absence of applicable law.
+
+5. Intellectual Property Ownership
+
+Except as expressly stated in the Agreement, no rights to any derivative works, inventions, products or product modifications, or documentation are conferred to Government or any other party. All such rights belong exclusively to Atlassian.
+
+6. Publicity Rights
+
+No publicity rights are granted by either Party in this Agreement. Any publicity must be authorized in writing by the Parties prior to name or logo use.
+
+7. Order of Precedence and Severability
+
+7.1. Order of Precedence . If there is any conflict between this Amendment and the Agreement, or between this Amendment and other terms, rules or policies on the Atlassian website or related to the Products or related services, this Amendment will prevail.
+
+7.2. Severability. The terms and conditions of this Amendment and the Agreement apply except to the limited extent prohibited by Law. If and to the extent any term or condition of this Amendment or the Agreement is so prohibited, such term or condition will be deemed modified only to the extent reasonably necessary to conform to Law but to give maximum effect to the term or condition as written.
+
+Related content
+
+Atlassian Customer Agreement
+
+Learn more
+
+Product-specific terms
+
+Learn more
+
+Advisory Services
+
+Learn more
+
+Data Processing Addendum
+
+Learn more
+
+Stay informed
+
+Subscribe to receive notifications from us about updates to our legal terms (including our legal policies) and our list of sub-processors.
+
+Sign up for updates
+
+Company
+
+Careers
+
+Events
+
+Blogs
+
+Investor Relations
+
+Atlassian Foundation
+
+Press kit
+
+Contact us
+
+products
+
+Rovo
+
+Jira
+
+Jira Align
+
+Jira Service Management
+
+Confluence
+
+Loom
+
+Trello
+
+Bitbucket
+
+See all products
+
+Resources
+
+Technical support
+
+Purchasing & licensing
+
+Templates
+
+Atlassian Community
+
+Knowledge base
+
+Marketplace
+
+My account
+
+Create support ticket
+
+Learn
+
+Partners
+
+Training & certification
+
+Documentation
+
+Developer resources
+
+Enterprise services
+
+See all resources
+
+Copyright © 2025 Atlassian
+
+Privacy Policy
+
+Terms
+
+Impressum
+
+Choose language Deutsch English Español Français Italiano 한국어 Nederlands 日本語 Polski Português русский 中文

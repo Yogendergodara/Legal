@@ -7,7 +7,10 @@ from review_agent.services.routing_tenant import obligation_routing_active
 
 
 def test_routing_inactive_when_master_off():
-    settings = ReviewSettings(obligation_routing_enabled=False)
+    settings = ReviewSettings(
+        obligation_routing_enabled=False,
+        obligation_routing_tenant_allowlist="",
+    )
     assert obligation_routing_active("e2e-demo", settings) is False
 
 
@@ -28,7 +31,18 @@ def test_routing_allowlist_pilot():
 def test_routing_denylist_blocks():
     settings = ReviewSettings(
         obligation_routing_enabled=True,
+        obligation_routing_tenant_allowlist="",
         obligation_routing_tenant_denylist="blocked",
     )
     assert obligation_routing_active("blocked", settings) is False
     assert obligation_routing_active("ok", settings) is True
+
+
+def test_golden_denylist_blocks_e2e_demo():
+    settings = ReviewSettings(
+        obligation_routing_enabled=True,
+        obligation_routing_tenant_allowlist="atlassian-demo,xecurify-demo",
+        obligation_routing_tenant_denylist="e2e-demo",
+    )
+    assert obligation_routing_active("e2e-demo", settings) is False
+    assert obligation_routing_active("atlassian-demo", settings) is True

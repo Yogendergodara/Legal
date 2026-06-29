@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from document_core.schemas.taxonomy import (
     BROAD_POLICY_CATEGORIES,
+    STANDARD_POLICY_CATEGORIES,
     cap_section_categories,
     normalize_categories,
+    taxonomy_prompt_grouped,
 )
 
 
@@ -34,3 +36,10 @@ def test_cap_keeps_broad_when_no_specific() -> None:
 
 def test_broad_categories_include_security() -> None:
     assert "security" in BROAD_POLICY_CATEGORIES
+
+
+def test_taxonomy_prompt_grouped_covers_all_labels() -> None:
+    grouped = taxonomy_prompt_grouped()
+    for label in sorted(STANDARD_POLICY_CATEGORIES - {"general"}):
+        assert label in grouped
+

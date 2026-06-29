@@ -8,9 +8,10 @@ import json
 import sys
 from pathlib import Path
 
-from bootstrap_env import load_env, setup_pythonpath
+from bootstrap_env import apply_golden_review_defaults, load_env, setup_pythonpath
 
 load_env()
+apply_golden_review_defaults()
 setup_pythonpath()
 
 from review_agent.clients.document_client import DocumentMCPClient  # noqa: E402

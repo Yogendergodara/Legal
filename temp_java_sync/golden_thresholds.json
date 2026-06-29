@@ -1,0 +1,35 @@
+{
+  "atlassian": {
+    "max_obligation_ipc_rate": 0.95,
+    "min_violations": 6,
+    "max_llm_rate_limit_events": 25,
+    "min_compare_queued": 28,
+    "min_obligation_compare_batches": 6,
+    "max_policies_discovered": 10,
+    "max_obligations_extracted": 85,
+    "min_obligation_cap_dropped": 1,
+    "min_compare_omitted_recovered": 12,
+    "min_gap_sections": 10,
+    "min_section_floor_compare_items": 20,
+    "min_llm_extract_rate": 0.90,
+    "max_extract_fallback_count": 0,
+    "min_review_wall_ms": 600000,
+    "max_wall_speed_ratio": 0.35,
+    "section_status_floors": {
+      "15": "NON_COMPLIANT",
+      "19": "NON_COMPLIANT",
+      "20.4": "NON_COMPLIANT"
+    }
+  },
+  "cisco": {
+    "max_section_ipc_pct": 85.0,
+    "min_violations": 4,
+    "min_legal_score_10": 6.0,
+    "min_compare_items": 9,
+    "min_section_compare_batches": 2,
+    "min_section_score_hits": 4
+  },
+  "ula": {"max_obligation_ipc_rate": 0.95, "min_violations": 2},
+  "eula": {"max_obligation_ipc_rate": 0.95, "min_violations": 3},
+  "nda": {"max_obligation_ipc_rate": 0.95, "min_violations": 1}
+}

@@ -135,3 +135,33 @@ def test_assignment_is_boilerplate():
 def test_governing_law_not_boilerplate():
     section = _section("Governing Law", "This Agreement is governed by Delaware law.")
     assert is_boilerplate_section(section) is False
+
+
+def test_body_entire_agreement_without_semantic_title():
+    section = _section(
+        "10.2",
+        "This Agreement constitutes the entire agreement between the parties "
+        "with respect to the subject matter hereof.",
+        section_id="10.2",
+    )
+    assert is_boilerplate_section(section) is True
+    assert is_non_substantive_section(section) is True
+
+
+def test_body_severability_without_semantic_title():
+    section = _section(
+        "10.3",
+        "If any provision of this Agreement is found to be invalid or unenforceable, "
+        "the remaining provisions shall continue in full force and effect.",
+        section_id="10.3",
+    )
+    assert is_boilerplate_section(section) is True
+
+
+def test_body_counterparts_without_semantic_title():
+    section = _section(
+        "10.6",
+        "This Agreement may be executed in counterparts, each of which shall be deemed an original.",
+        section_id="10.6",
+    )
+    assert is_boilerplate_section(section) is True

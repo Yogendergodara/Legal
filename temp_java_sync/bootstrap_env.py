@@ -20,6 +20,13 @@ _REVIEW_ENV_PREFIXES = (
     "PLAYBOOK_",
     "GROUNDING_",
     "RERANKER_",
+    "OBLIGATION_",
+    "EVIDENCE_",
+    "ROUTING_",
+    "CATALOG_",
+    "MAX_OBLIGATIONS_",
+    "MAX_PLANNER_",
+    "MAX_CATALOG_",
 )
 
 
@@ -64,6 +71,75 @@ def load_env() -> Path:
             if not os.environ.get(key):
                 os.environ[key] = value
     return root
+
+
+def apply_golden_tenant_rollout_defaults() -> None:
+    """Enable obligation routing + parallel hybrid for all tenants (empty allowlist = global)."""
+    os.environ["OBLIGATION_ROUTING_ENABLED"] = "true"
+    os.environ["REVIEW_PIPELINE_MODE"] = "parallel_hybrid"
+    # Override review_agent/.env pilot allowlist (e.g. e2e-demo) so battery tenants get routing.
+    os.environ["OBLIGATION_ROUTING_TENANT_ALLOWLIST"] = ""
+
+
+def apply_golden_llm_profile_defaults() -> None:
+    """RC-12 — battery/golden runs use conservative Mistral pacing unless opted out."""
+    if os.environ.get("GOLDEN_LLM_PROFILE_OPT_OUT", "").strip().lower() in ("1", "true", "yes"):
+        return
+    force = os.environ.get("GOLDEN_LLM_PROFILE_FORCE", "").strip().lower() in ("1", "true", "yes")
+    if force:
+        os.environ["LLM_RATE_LIMIT_PROFILE"] = "mistral_conservative"
+    else:
+        os.environ.setdefault("LLM_RATE_LIMIT_PROFILE", "mistral_conservative")
+
+
+def apply_golden_review_defaults() -> None:
+    """RC-05 — P5-aligned obligation cap when not explicitly configured."""
+    apply_golden_tenant_rollout_defaults()
+    apply_golden_llm_profile_defaults()
+    apply_sr01_retrieval_defaults()
+    apply_ob_ipc_recovery_defaults()
+    apply_pr01_precision_defaults()
+    if os.environ.get("MAX_OBLIGATIONS_PER_REVIEW", "").strip() == "":
+        os.environ["MAX_OBLIGATIONS_PER_REVIEW"] = "80"
+
+
+def apply_ob_ipc_recovery_defaults() -> None:
+    """OB-01/04 — non-429 IPC recovery defaults for golden/A/B (opt out: OB_IPC_RECOVERY_OPT_OUT=true)."""
+    if os.environ.get("OB_IPC_RECOVERY_OPT_OUT", "").strip().lower() in ("1", "true", "yes"):
+        return
+    os.environ.setdefault("OBLIGATION_RETRIEVAL_SKIP_RESOLVED_SECTIONS", "false")
+    os.environ.setdefault("OBLIGATION_SKIP_RESOLVED_PARALLEL_GUARD", "true")
+    os.environ.setdefault("EVIDENCE_MIN_CONCEPT_OVERLAP", "0.15")
+    os.environ.setdefault("ROUTING_COMPARE_MIN_CONFIDENCE", "0.75")
+
+
+def apply_pr01_precision_defaults() -> None:
+    """PR-01 — precision funnel recovery (opt out: PR01_PRECISION_OPT_OUT=true)."""
+    if os.environ.get("PR01_PRECISION_OPT_OUT", "").strip().lower() in ("1", "true", "yes"):
+        return
+    os.environ.setdefault("EVIDENCE_RERANK_BYPASS_ENABLED", "true")
+    os.environ.setdefault("EVIDENCE_RERANK_BYPASS_MIN_CONFIDENCE", "0.55")
+    os.environ.setdefault("EVIDENCE_EXPAND_MAX_ROUNDS", "2")
+    os.environ.setdefault("EVIDENCE_EXPAND_BROADEN_MODE", "both")
+    os.environ.setdefault("EVIDENCE_EXPAND_MAX_EXTRA_DOCS", "3")
+    os.environ.setdefault("CATALOG_MATCH_TOP_K", "12")
+    os.environ.setdefault("CATALOG_MATCH_MAX_CANDIDATES", "8")
+    os.environ.setdefault("MAX_CATALOG_SEARCH_CALLS_PER_REVIEW", "150")
+    os.environ.setdefault("OBLIGATION_RETRIEVAL_UNION_TOP_K", "20")
+    os.environ.setdefault("OBLIGATION_RETRIEVAL_MAX_QUERIES", "4")
+    os.environ.setdefault("OBLIGATION_COMPARE_MAX_OBLIGATION_CHARS", "3000")
+    os.environ.setdefault("PLAYBOOK_COMPARE_MAX_CHARS", "2000")
+    os.environ.setdefault("COMPARE_MAX_POLICY_HITS", "3")
+    os.environ.setdefault("ROUTING_PLANNER_EXPLICIT_MENTION_CONFIDENCE_FLOOR", "0.55")
+
+
+def apply_sr01_retrieval_defaults() -> None:
+    """SR-01 — meaning-first retrieval for golden/A/B runs (opt out: SR01_RETRIEVAL_OPT_OUT=true)."""
+    if os.environ.get("SR01_RETRIEVAL_OPT_OUT", "").strip().lower() in ("1", "true", "yes"):
+        return
+    os.environ.setdefault("RETRIEVAL_MEANING_FIRST_ENABLED", "true")
+    os.environ.setdefault("RETRIEVAL_CATEGORY_HARD_FILTER", "false")
+    os.environ.setdefault("COMPARE_HIT_ALLOW_PRIMARY_FALLBACK", "true")
 
 
 def setup_pythonpath() -> None:

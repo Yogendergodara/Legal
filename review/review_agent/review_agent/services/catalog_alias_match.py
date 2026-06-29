@@ -8,13 +8,33 @@ from dataclasses import dataclass
 from review_agent.services.catalog_registry import CatalogEntry
 
 _NORM_RE = re.compile(r"[^a-z0-9\s]+")
+_TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
+_TOKEN_FALLBACK_MIN_OVERLAP = 0.5
 
 
 def _normalize(text: str) -> str:
     return " ".join(_NORM_RE.sub(" ", (text or "").lower()).split())
 
 
-def _mention_score(mention: str, candidate: str) -> float:
+def _title_tokens(text: str) -> set[str]:
+    return set(_TOKEN_RE.findall(_normalize(text)))
+
+
+def _token_overlap_score(mention: str, candidate: str) -> float:
+    a = _title_tokens(mention)
+    b = _title_tokens(candidate)
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
+def _mention_score(
+    mention: str,
+    candidate: str,
+    *,
+    token_fallback: bool,
+    min_score: float,
+) -> float:
     m = _normalize(mention)
     c = _normalize(candidate)
     if not m or not c:
@@ -23,6 +43,10 @@ def _mention_score(mention: str, candidate: str) -> float:
         return 1.0
     if m in c or c in m:
         return 0.95
+    if token_fallback:
+        overlap = _token_overlap_score(mention, candidate)
+        if overlap >= _TOKEN_FALLBACK_MIN_OVERLAP:
+            return max(min_score, 0.85 + overlap * 0.1)
     return 0.0
 
 
@@ -40,6 +64,7 @@ def match_explicit_mentions(
     catalog_entries: list[CatalogEntry],
     *,
     min_score: float = 0.92,
+    token_fallback: bool = True,
 ) -> AliasMatchResult | None:
     """Return best single doc match when confidence >= min_score."""
     if not mentions or not catalog_entries:
@@ -54,7 +79,12 @@ def match_explicit_mentions(
         for entry in catalog_entries:
             candidates = [entry.title, *entry.aliases]
             for candidate in candidates:
-                score = _mention_score(mention, candidate)
+                score = _mention_score(
+                    mention,
+                    candidate,
+                    token_fallback=token_fallback,
+                    min_score=min_score,
+                )
                 if score < min_score:
                     continue
                 match = AliasMatchResult(

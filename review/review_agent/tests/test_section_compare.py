@@ -123,10 +123,13 @@ async def test_compare_rejects_cross_section_contract_quote(monkeypatch):
     monkeypatch.setattr(section_compare_llm, "get_review_model", lambda **_: object())
     monkeypatch.setattr(section_compare_llm, "invoke_structured", _fake_invoke)
 
+    from review_agent.config import ReviewSettings
+
     section = _section("s1", section_text)
     items, _warnings = await section_compare_llm.compare_section_batch(
         [section],
         {"s1": [_policy_hit("Policy requires HR standards.")]},
+        settings=ReviewSettings(grounding_downgrade_mode="inconclusive"),
     )
     assert len(items) == 1
     assert items[0].status == ComplianceStatus.INCONCLUSIVE
@@ -165,7 +168,7 @@ async def test_compare_drops_unknown_section_id(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_compare_failure_emits_insufficient(monkeypatch):
+async def test_compare_failure_emits_inconclusive_with_hits(monkeypatch):
     async def _fake_invoke(*_args, **_kwargs):
         raise RuntimeError("llm unavailable")
 
@@ -173,8 +176,62 @@ async def test_compare_failure_emits_insufficient(monkeypatch):
     monkeypatch.setattr(section_compare_llm, "invoke_structured", _fake_invoke)
 
     section = _section("s1", "Some contract text long enough for review.")
-    items, _warnings = await section_compare_llm.compare_section_batch([section], {"s1": [_policy_hit("policy")]})
+    items, _warnings = await section_compare_llm.compare_section_batch(
+        [section], {"s1": [_policy_hit("policy")]}
+    )
     assert len(items) == 1
+    assert items[0].status == ComplianceStatus.INCONCLUSIVE
+
+
+@pytest.mark.asyncio
+async def test_compare_failure_emits_insufficient_without_hits(monkeypatch):
+    async def _fake_invoke(*_args, **_kwargs):
+        raise RuntimeError("llm unavailable")
+
+    monkeypatch.setattr(section_compare_llm, "get_review_model", lambda **_: object())
+    monkeypatch.setattr(section_compare_llm, "invoke_structured", _fake_invoke)
+
+    section = _section("s1", "Some contract text long enough for review.")
+    items, _warnings = await section_compare_llm.compare_section_batch([section], {"s1": []})
+    assert len(items) == 1
+    assert items[0].status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
+
+
+@pytest.mark.asyncio
+async def test_compare_batch_429_no_single_fanout(monkeypatch):
+    from review_agent.config import ReviewSettings, get_settings
+    from review_agent.models import llm_gateway
+
+    sections = [
+        _section("s1", "Liability is unlimited for all claims."),
+        _section("s2", "Termination requires thirty days notice."),
+    ]
+    calls = {"n": 0}
+    settings = ReviewSettings(compare_batch_retry_single=True, llm_review_posture_enabled=True)
+
+    async def _fake_invoke(_model, _schema, *, system, user):
+        calls["n"] += 1
+        raise RuntimeError("HTTP 429 rate limit exceeded")
+
+    llm_gateway.reset_llm_limiter()
+    get_settings.cache_clear()
+    limiter = llm_gateway._get_limiter()
+    limiter.rate_limit_events = 3
+
+    monkeypatch.setattr(section_compare_llm, "get_review_model", lambda **_: object())
+    monkeypatch.setattr(section_compare_llm, "invoke_structured", _fake_invoke)
+
+    hits = {
+        "s1": [_policy_hit("Liability shall not exceed twelve months fees.")],
+        "s2": [_policy_hit("Either party may terminate with thirty days notice.")],
+    }
+    items, _warnings = await section_compare_llm.compare_section_batch(
+        sections,
+        hits,
+        settings=settings,
+    )
+    assert calls["n"] == 1
+    assert len(items) == 2
     assert items[0].status == ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT
 
 

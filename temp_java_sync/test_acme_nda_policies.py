@@ -56,7 +56,7 @@ async def main() -> int:
         print("health:", health.status_code, health.json().get("document_mcp", {}).get("db"))
 
         print(f"\n=== Sync {len(policies)} Acme policies (tenant={tenant}) ===")
-        sync = await sync_policies(http, policies, tenant_id=tenant, replace=True)
+        sync = await sync_policies(http, policies, tenant_id=tenant)
         if sync.get("tenant_id") != tenant:
             print(f"FAIL: sync tenant {sync.get('tenant_id')!r} != {tenant!r}", file=sys.stderr)
             return 1

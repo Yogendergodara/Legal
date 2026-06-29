@@ -224,9 +224,14 @@ def _select_grouped_with_category_reserve(
     """One best policy per section category, then fill remaining group slots."""
     reserved: list[DiscoveredPolicy] = []
     reserved_ids: set[str] = set()
-    for category in section_categories:
-        if category == "general":
-            continue
+    non_general = [category for category in section_categories if category != "general"]
+    if max_groups > 0:
+        reserve_cap = min(len(non_general), max(1, max_groups // 2))
+    else:
+        reserve_cap = len(non_general)
+    for category in non_general:
+        if len(reserved) >= reserve_cap:
+            break
         candidates = [policy for policy in ranked if category in policy.categories]
         if not candidates:
             continue
@@ -453,6 +458,14 @@ def _group_and_cap(
     group_cap: int,
     section_categories: list[str] | None = None,
 ) -> tuple[list[DiscoveredPolicy], int, int, int]:
+    if (
+        settings.discovery_vendor_complete_threshold > 0
+        and len(ranked) <= settings.discovery_vendor_complete_threshold
+    ):
+        capped = ranked
+        if settings.discovery_max_policies > 0:
+            capped = capped[: settings.discovery_max_policies]
+        return capped, 0, len(ranked), 0
     if settings.discovery_group_mode == "category":
         if settings.discovery_category_reserve_slots and section_categories:
             return _select_grouped_with_category_reserve(
@@ -582,6 +595,11 @@ async def discover_policies_from_topics(
         warnings.append(f"Policy discovery constrained to {len(scope)} session policy/policies.")
     else:
         ranked = sorted(aggregated.values(), key=lambda policy: policy.match_score, reverse=True)
+        if (
+            settings.discovery_vendor_complete_threshold > 0
+            and len(ranked) <= settings.discovery_vendor_complete_threshold
+        ):
+            group_cap = max(group_cap, len(ranked))
         capped, deduped, groups_before_cap, category_reserved = _group_and_cap(
             ranked,
             settings=settings,
@@ -626,6 +644,11 @@ async def discover_policies_from_topics(
             groups_before_cap = len(capped)
         else:
             ranked = sorted(merged.values(), key=lambda policy: policy.match_score, reverse=True)
+            if (
+                settings.discovery_vendor_complete_threshold > 0
+                and len(ranked) <= settings.discovery_vendor_complete_threshold
+            ):
+                group_cap = max(group_cap, len(ranked))
             capped, deduped, groups_before_cap, category_reserved = _group_and_cap(
                 ranked,
                 settings=settings,

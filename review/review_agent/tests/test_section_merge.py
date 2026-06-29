@@ -51,6 +51,37 @@ def test_merge_adds_no_policy_gap():
     assert merged.warnings
 
 
+def test_merge_compare_transient_gap_type():
+    items = [
+        SectionCompareItem(
+            section_id="s1",
+            dimension_label="Liability",
+            status=ComplianceStatus.INCONCLUSIVE,
+            severity=Severity.INFO,
+            rationale="Section compare failed: 429 rate limit",
+        ),
+    ]
+    bundles = {
+        "s1": SectionRetrievalBundle(section_id="s1", categories=["liability"], policy_hits=[]),
+    }
+    findings = section_items_to_findings(items)
+    assert findings[0].metadata.get("gap_type") == "compare_transient"
+
+
+def test_merge_compare_failed_gap_type_ipc():
+    items = [
+        SectionCompareItem(
+            section_id="s1",
+            dimension_label="Liability",
+            status=ComplianceStatus.INSUFFICIENT_POLICY_CONTEXT,
+            severity=Severity.INFO,
+            rationale="Section compare failed: no policy",
+        ),
+    ]
+    findings = section_items_to_findings(items)
+    assert findings[0].metadata.get("gap_type") == "compare_failed"
+
+
 def test_merge_adds_compare_omitted_gap():
     from document_core.schemas.chunk import ChunkRole, DocumentKind, IndexedChunk, RetrievalHit
 
@@ -219,18 +250,16 @@ def test_merge_tags_unclear_recompare_eligibility():
     }
     merged = merge_section_findings(items, bundles)
     assert len(merged.unclear_finding_ids) == 2
-    assert len(merged.unclear_recompare_finding_ids) == 1
-    eligible = next(
-        f for f in merged.findings if f.finding_id in merged.unclear_recompare_finding_ids
+    assert len(merged.unclear_recompare_finding_ids) == 2
+    low_conf = next(
+        f for f in merged.findings if f.metadata.get("unclear_reason") == "low_confidence"
     )
-    assert eligible.metadata.get("unclear_reason") == "low_confidence"
-    assert eligible.metadata.get("unclear_recompare_eligible") is True
-    skipped = next(
-        f for f in merged.findings if f.finding_id not in merged.unclear_recompare_finding_ids
+    assert low_conf.metadata.get("unclear_recompare_eligible") is True
+    compare_failed = next(
+        f for f in merged.findings if f.metadata.get("unclear_reason") == "compare_failed"
     )
-    assert skipped.metadata.get("unclear_reason") == "compare_failed"
-    assert skipped.metadata.get("unclear_recompare_eligible") is False
-    assert any("skipped for re-compare" in w for w in merged.warnings)
+    assert compare_failed.metadata.get("unclear_recompare_eligible") is True
+    assert not any("not eligible for re-compare" in w for w in merged.warnings)
 
 
 def test_merge_caps_findings_per_section():

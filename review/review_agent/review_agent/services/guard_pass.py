@@ -15,7 +15,11 @@ from review_agent.schemas.guard_llm import (
     RationaleGuardResult,
     SupportLevel,
 )
-from review_agent.services.rationale_repair_llm import repair_rationale_for_finding
+from review_agent.services.rationale_repair_llm import (
+    repair_rationale_for_finding,
+    repair_rationales_batch,
+)
+from review_agent.resilience.failure_policy import ReviewPosture, get_current_review_posture
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +39,40 @@ def _load_prompt_template() -> tuple[str, str]:
 
 
 def _should_guard(finding: ComplianceFinding, settings: ReviewSettings) -> bool:
+    meta = finding.metadata or {}
+    if meta.get("guard_failed"):
+        return False
+
+    prior_nc = meta.get("prior_status") == ComplianceStatus.NON_COMPLIANT.value
+    ungrounded_nc_kept = (
+        finding.status == ComplianceStatus.NON_COMPLIANT
+        and meta.get("grounding_failed") is True
+    )
+    downgraded_from_nc = (
+        finding.status == ComplianceStatus.INCONCLUSIVE
+        and prior_nc
+        and meta.get("grounding_failed") is True
+    )
+
     if settings.guard_pass_non_compliant_only:
-        if finding.status != ComplianceStatus.NON_COMPLIANT:
+        if finding.status == ComplianceStatus.NON_COMPLIANT:
+            if not ungrounded_nc_kept and finding.grounded is not True:
+                return False
+        elif finding.status == ComplianceStatus.INCONCLUSIVE:
+            if not downgraded_from_nc:
+                return False
+        else:
             return False
     elif finding.status not in (
         ComplianceStatus.COMPLIANT,
         ComplianceStatus.NON_COMPLIANT,
     ):
+        if not downgraded_from_nc:
+            return False
+    elif meta.get("grounding_failed") and not ungrounded_nc_kept:
         return False
 
-    meta = finding.metadata or {}
-    if meta.get("grounding_failed") or meta.get("guard_failed"):
-        return False
-    if finding.grounded is not True:
+    if not (ungrounded_nc_kept or downgraded_from_nc) and finding.grounded is not True:
         return False
     if not (finding.contract_quote or finding.policy_quote):
         return False
@@ -178,6 +203,19 @@ async def _process_guard_result(
         return updated, kind
 
     if settings.guard_rationale_repair_enabled:
+        if settings.llm_review_posture_enabled and get_current_review_posture() in (
+            ReviewPosture.HOT,
+            ReviewPosture.DEGRADED,
+        ):
+            meta = dict(finding.metadata or {})
+            meta["guard_deferred"] = True
+            if result.reason:
+                meta["guard_reason"] = result.reason[:500]
+            return _downgrade_finding(
+                finding.model_copy(update={"metadata": meta}),
+                reason=result.reason,
+            ), "failed"
+
         meta = dict(finding.metadata or {})
         meta["guard_repair_attempted"] = True
         if result.reason:
@@ -289,6 +327,18 @@ async def _guard_batch(
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning("batch guard failed, falling back per finding: %s", exc)
+        if settings.llm_review_posture_enabled and get_current_review_posture() in (
+            ReviewPosture.HOT,
+            ReviewPosture.DEGRADED,
+        ):
+            for finding in batch:
+                meta = dict(finding.metadata or {})
+                meta["guard_deferred"] = True
+                outcomes[finding.finding_id] = (
+                    finding.model_copy(update={"metadata": meta}),
+                    "skipped",
+                )
+            return outcomes
         for finding in batch:
             outcomes[finding.finding_id] = await guard_finding(
                 finding,
@@ -314,14 +364,102 @@ async def _guard_batch(
                 settings=settings,
             )
             continue
-        outcomes[finding.finding_id] = await _process_guard_result(
-            finding,
-            result,
-            system_tpl=system_tpl,
-            user_tpl=user_tpl,
-            model=model,
+        if result.support_level in (SupportLevel.FULL, SupportLevel.INFERENCE_OK):
+            outcomes[finding.finding_id] = _apply_support_level(finding, result)
+            continue
+        if settings.llm_review_posture_enabled and get_current_review_posture() in (
+            ReviewPosture.HOT,
+            ReviewPosture.DEGRADED,
+        ):
+            meta = dict(finding.metadata or {})
+            meta["guard_deferred"] = True
+            if result.reason:
+                meta["guard_reason"] = result.reason[:500]
+            outcomes[finding.finding_id] = (
+                _downgrade_finding(
+                    finding.model_copy(update={"metadata": meta}),
+                    reason=result.reason,
+                ),
+                "failed",
+            )
+            continue
+        outcomes[finding.finding_id] = (finding, result)
+
+    pending: list[tuple[ComplianceFinding, RationaleGuardResult]] = []
+    for finding in batch:
+        entry = outcomes.get(finding.finding_id)
+        if entry is None or not isinstance(entry, tuple) or len(entry) != 2:
+            continue
+        stored_finding, stored_result = entry
+        if stored_finding is finding and isinstance(stored_result, RationaleGuardResult):
+            pending.append((finding, stored_result))
+
+    if pending and settings.guard_rationale_repair_enabled:
+        repaired_texts = await repair_rationales_batch(
+            [finding for finding, _ in pending],
             settings=settings,
         )
+        repaired_findings: list[ComplianceFinding] = []
+        repair_meta_by_id: dict[str, dict[str, Any]] = {}
+        for finding, result in pending:
+            meta = dict(finding.metadata or {})
+            meta["guard_repair_attempted"] = True
+            if result.reason:
+                meta["guard_reason"] = result.reason[:500]
+            repaired_text = repaired_texts.get(finding.finding_id, finding.rationale or "")
+            repaired_findings.append(
+                finding.model_copy(update={"rationale": repaired_text, "metadata": meta})
+            )
+            repair_meta_by_id[finding.finding_id] = meta
+
+        try:
+            reguard_map = await _invoke_guard_batch(
+                repaired_findings,
+                system_tpl=system_tpl,
+                user_tpl=user_tpl,
+                model=model,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("batch re-guard after repair failed: %s", exc)
+            for finding, result in pending:
+                outcomes[finding.finding_id] = _downgrade_finding(finding, reason=result.reason), "failed"
+            return outcomes
+
+        for repaired_finding in repaired_findings:
+            result2 = reguard_map.get(repaired_finding.finding_id)
+            orig_result = next(r for f, r in pending if f.finding_id == repaired_finding.finding_id)
+            if result2 is None:
+                outcomes[repaired_finding.finding_id] = (
+                    _downgrade_finding(repaired_finding, reason=orig_result.reason),
+                    "failed",
+                )
+                continue
+            if result2.support_level in (SupportLevel.FULL, SupportLevel.INFERENCE_OK):
+                meta2 = dict(repair_meta_by_id.get(repaired_finding.finding_id) or {})
+                meta2["guard_repair_success"] = True
+                meta2["guard_support_level"] = result2.support_level.value
+                if result2.reason:
+                    meta2["guard_reason"] = result2.reason[:500]
+                outcomes[repaired_finding.finding_id] = (
+                    repaired_finding.model_copy(update={"metadata": meta2}),
+                    "repaired",
+                )
+            else:
+                outcomes[repaired_finding.finding_id] = (
+                    _downgrade_finding(repaired_finding, reason=result2.reason),
+                    "failed",
+                )
+    elif pending:
+        for finding, result in pending:
+            outcomes[finding.finding_id] = await _process_guard_result(
+                finding,
+                result,
+                system_tpl=system_tpl,
+                user_tpl=user_tpl,
+                model=model,
+                settings=settings,
+            )
+
     return outcomes
 
 

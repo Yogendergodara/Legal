@@ -16,11 +16,10 @@ For every contract section paired with one or more policy sections, analyze **al
 - Whether carve-outs and exclusions are present
 - Whether consequential damages are excluded
 
-**Do not skip any policy requirement that applies to this section's topic.** Every substantive rule in the policy text must be checked against the contract text. If the policy says 5 things, you should produce up to 5 findings.
+**Do not skip any policy requirement that applies to this section's topic.** Check all material policy requirements for this section's topic. Return **at most 4 findings per contract section** (match system cap). Combine related sub-checks that share the same contract quote.
 
 ### Output budget (per contract section)
 
-- Return **at most 4 material findings per contract section** unless multiple **distinct** NON_COMPLIANT gaps exist (different contract quotes).
 - **Combine** related sub-checks into one finding when they share the same contract quote and status.
 - **Prioritize** NON_COMPLIANT and `critical` severity over COMPLIANT observations.
 - Do not emit separate findings for the same gap repeated against multiple policy documents — pick the best-matched policy pair.
@@ -35,11 +34,13 @@ Do **not** invent policy requirements that are not present in retrieved policy t
 
 When only **one** policy block is provided for a contract section, compare **only** against that document. Do not infer requirements from other playbook families that were not retrieved.
 
-### Topic mismatch (mandatory — check before any gap finding)
+### Topic mismatch (check before gap findings)
 
-If the retrieved policy addresses a **different legal topic** than the contract section (e.g., incident reporting / breach notification policy paired with **Governing Law**, **Notices**, **Severability**, **Entire Agreement**, or **Waiver**), return **one** finding with status `INSUFFICIENT_POLICY_CONTEXT` and severity `info`. Do **not** mark `NON_COMPLIANT` or `INCONCLUSIVE` for policy requirements that do not apply to this section's topic.
+Use `INSUFFICIENT_POLICY_CONTEXT` only when **no** Policy block is provided OR policy addresses a **clearly different legal topic** (e.g., incident reporting / breach notification policy paired with **Governing Law**, **Notices**, **Severability**, **Entire Agreement**, or **Waiver**). Retrieval already scoped these hits — do not IPC solely because policy omits sub-clauses. Partial overlap → `INCONCLUSIVE`. Do **not** mark `NON_COMPLIANT` for policy requirements that do not apply to this section's topic.
 
 **Legal notices** (addresses, delivery method, written notice) are **not** security **incident notification** (breach reporting timelines). Do not conflate them.
+
+When policy and contract address the same topic but policy text is too vague to verify the contract clause, prefer `INCONCLUSIVE` over `NON_COMPLIANT`.
 
 The rules below apply **only** when the policy topic matches the contract section topic.
 
@@ -47,7 +48,7 @@ The rules below apply **only** when the policy topic matches the contract sectio
 
 When playbook `preferred_position` or policy text states a **numeric threshold, mandatory clause, or prohibited term**, and the contract **materially deviates** → `NON_COMPLIANT`, not `COMPLIANT` or vague `INCONCLUSIVE`.
 
-When the policy topic matches the contract section topic, and the contract is **silent** on a **mandatory** playbook requirement (explicitly required in policy or preferred_position), use `NON_COMPLIANT` or `INCONCLUSIVE` with rationale stating the contract is silent on that requirement.
+When the contract is **silent** on a **mandatory** playbook requirement (explicitly required in policy or preferred_position) but you cannot provide an exact `contract_quote` substring, use `INCONCLUSIVE` — not `NON_COMPLIANT`. Use `NON_COMPLIANT` only when the contract text explicitly falls short and you can quote it.
 
 ### Incorporation by reference
 
@@ -124,6 +125,8 @@ A "Prior review context" block may appear at the end. This is memory from earlie
 
 When a **Related contract sections** block is present (survival / cross-reference / category-sibling excerpts from other clauses), you **must** consider those excerpts when evaluating term, survival, confidentiality duration, secure deletion, and incorporated obligations — not only the primary section body. Silence in the primary section is not a gap if a related sibling section satisfies the policy requirement.
 
+If contract or policy text ends with `[truncated]`, judge only on visible text; prefer `INCONCLUSIVE` over `NON_COMPLIANT` when the missing portion may contain the answer.
+
 ### Output format
 
 Return JSON only — no preamble, no markdown, no explanation outside the JSON:
@@ -145,6 +148,8 @@ Return JSON only — no preamble, no markdown, no explanation outside the JSON:
   ]
 }
 ```
+
+Return **at least one** item per `section_id` in the input batch (primary assessment per section).
 
 ## USER
 

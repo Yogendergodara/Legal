@@ -36,17 +36,21 @@ class DocumentCoreSettings(BaseSettings):
     embedding_truncate_dim: int | None = None
     policy_stale_days: int = 0
     category_tagger_enabled: bool = True
-    category_tagger_mode: Literal["auto", "llm", "keyword"] = "keyword"
+    category_tagger_mode: Literal["auto", "llm", "keyword"] = "llm"
     category_tagger_model: str = "mistral-small-latest"
-    category_tagger_batch_size: int = 8
-    category_tagger_max_section_chars: int = 1200
-    category_tagger_max_tags_per_section: int = 3
+    # Min sections per LLM call when a policy must be split; smaller policies use one call.
+    category_tagger_batch_size: int = 10
+    category_tagger_whole_policy_enabled: bool = True
+    category_tagger_whole_policy_max_chars: int = 32_000
+    category_tagger_max_section_chars: int = 2000
+    category_tagger_max_tags_per_section: int = 5
     category_tagger_temperature: float = 0.0
+    category_tagger_llm_timeout_seconds: float = 120.0
     child_chunk_max_chars: int = 700
     child_chunk_overlap_sentences: int = 2
     category_search_boost: float = 0.15
     policy_profiler_enabled: bool = True
-    policy_profiler_mode: Literal["auto", "llm", "keyword", "off"] = "auto"
+    policy_profiler_mode: Literal["auto", "llm", "keyword", "off"] = "llm"
     policy_profiler_model: str = "mistral-small-latest"
     policy_profiler_max_body_chars: int = 4000
 

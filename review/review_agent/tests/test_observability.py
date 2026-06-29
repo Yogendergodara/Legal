@@ -10,7 +10,7 @@ import pytest
 from review_agent.observability.context import bind_review_context, set_current_node
 from review_agent.observability.logging import ReviewContextFilter
 from review_agent.observability.metrics import configure_metrics, record_mcp_request
-from review_agent.observability.timing import merge_node_timing
+from review_agent.observability.timing import merge_compliance_stats, merge_node_timing
 
 
 def test_context_filter_injects_fields() -> None:
@@ -40,6 +40,41 @@ def test_merge_node_timing_accumulates() -> None:
     }
 
 
+def test_merge_compliance_stats_parallel_branch_timings() -> None:
+    section = {
+        "compliance_stats": {
+            "sections_retrieved": 12,
+            "node_timings_ms": {"section_policy_retrieval": 100.0},
+        }
+    }
+    obligation = {
+        "compliance_stats": {
+            "obligation_retrieved_count": 40,
+            "node_timings_ms": {"obligation_retrieval": 200.0},
+        }
+    }
+    merged = merge_compliance_stats(
+        section["compliance_stats"],
+        obligation["compliance_stats"],
+    )
+    assert merged["sections_retrieved"] == 12
+    assert merged["obligation_retrieved_count"] == 40
+    assert merged["node_timings_ms"] == {
+        "section_policy_retrieval": 100.0,
+        "obligation_retrieval": 200.0,
+    }
+
+
+def test_merge_compliance_stats_parallel_compare_modes() -> None:
+    merged = merge_compliance_stats(
+        {"compliance_mode": "section_first", "compare_items": 8},
+        {"compliance_mode": "obligation_routing", "obligation_compare_count": 3},
+    )
+    assert merged["compliance_mode"] == "hybrid"
+    assert merged["compare_items"] == 8
+    assert merged["obligation_compare_count"] == 3
+
+
 def test_metrics_noop_when_disabled() -> None:
     configure_metrics(False)
     record_mcp_request("/tools/search_policy", "200")
@@ -58,7 +93,7 @@ async def test_run_review_sets_wall_ms(monkeypatch) -> None:
     monkeypatch.setattr(
         review_graph,
         "validate_review_inputs",
-        lambda **kwargs: (str(kwargs["contract_document_id"]), []),
+        lambda **kwargs: (str(kwargs["contract_document_id"]), [], []),
     )
 
     client = MagicMock()

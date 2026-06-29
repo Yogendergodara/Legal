@@ -215,7 +215,7 @@ async def test_classify_all_sections_recovers_failed_batch(monkeypatch):
 
     monkeypatch.setattr(section_classifier, "classify_sections_batch", _boom_batch)
 
-    results = await section_classifier.classify_all_sections(sections, settings=ReviewSettings())
+    results, _stats = await section_classifier.classify_all_sections(sections, settings=ReviewSettings())
     assert set(results.keys()) == {"3", "4"}
     assert "liability" in results["3"].categories
     assert "indemnity" in results["4"].categories
@@ -325,7 +325,7 @@ async def test_batch_fail_retries_single(monkeypatch):
 
     async def _fake_invoke(_model, _schema, *, system, user):
         calls["n"] += 1
-        if calls["n"] == 1:
+        if "Section A" in user and "Section B" in user:
             raise RuntimeError("batch failed")
         if "Section A" in user:
             return BatchSectionCategoryLLMResult(
@@ -466,3 +466,62 @@ async def test_llm_general_overridden_by_lexical_title(monkeypatch):
     assert "security" in result.categories
     assert result.classify_warning
     assert "lexical_enriched" in result.classify_warning
+
+
+@pytest.mark.asyncio
+async def test_salvage_classify_uses_invoke_structured(monkeypatch):
+    sections = [_section("Fees", "Payment due net 30.", section_id="s1")]
+
+    async def _fake_invoke(*_args, **_kwargs):
+        return BatchSectionCategoryLLMResult(
+            items=[
+                SectionCategoryResult(
+                    section_id="s1",
+                    categories=["payment"],
+                    query_terms=["payment terms"],
+                )
+            ]
+        )
+
+    monkeypatch.setattr(section_classifier, "get_review_model", lambda **_: object())
+    monkeypatch.setattr(section_classifier, "invoke_structured", _fake_invoke)
+
+    result = await section_classifier._salvage_classify_batch(
+        sections,
+        contract_type="saas",
+        settings=_LLM_ONLY,
+        system_tpl="system",
+        batch_user="user",
+    )
+    assert result.items[0].categories == ["payment"]
+
+
+@pytest.mark.asyncio
+async def test_classify_batch_429_uses_lexical_not_salvage(monkeypatch):
+    section = _section(
+        "8. Support and Advisory Services",
+        "Atlassian will provide Support and Advisory Services as described in the Order.",
+        section_id="8",
+    )
+    rate_exc = RuntimeError(
+        "Error response 429 while fetching https://api.mistral.ai/v1/chat/completions: "
+        '{"object":"error","message":"Rate limit exceeded","type":"rate_limited","code":"1300"}'
+    )
+    salvage_called = {"n": 0}
+
+    async def _fake_invoke(*_args, **_kwargs):
+        raise rate_exc
+
+    async def _fake_salvage(*_args, **_kwargs):
+        salvage_called["n"] += 1
+        raise AssertionError("salvage should not run on 429")
+
+    monkeypatch.setattr(section_classifier, "get_review_model", lambda **_: object())
+    monkeypatch.setattr(section_classifier, "invoke_structured", _fake_invoke)
+    monkeypatch.setattr(section_classifier, "_salvage_classify_batch", _fake_salvage)
+
+    result = await section_classifier.classify_section_policies(section, settings=_LLM_ONLY)
+    assert salvage_called["n"] == 0
+    assert "sla" in result.categories
+    assert result.classify_warning
+    assert "rate_limited" in result.classify_warning or "lexical" in result.classify_warning

@@ -15,6 +15,8 @@ async def test_search_policy_by_categories_payload_shape() -> None:
     captured: list[dict] = []
 
     class _FakeResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 
@@ -49,6 +51,8 @@ async def test_search_policy_by_categories_merges_existing_metadata() -> None:
     captured: list[dict] = []
 
     class _FakeResponse:
+        status_code = 200
+
         def raise_for_status(self) -> None:
             return None
 

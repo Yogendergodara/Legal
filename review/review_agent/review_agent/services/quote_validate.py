@@ -30,7 +30,7 @@ def truncate_section(text: str, max_chars: int) -> str:
         cut = cut.rsplit("\n\n", 1)[0]
     elif " " in cut:
         cut = cut.rsplit(" ", 1)[0]
-    return cut + "\n\n[... section truncated for model context ...]"
+    return cut + "\n\n[truncated]"
 
 
 def quote_is_substring(quote: str, haystack: str) -> bool:
@@ -111,6 +111,7 @@ def validate_and_normalize_quotes(
     policy_text: str,
     quote_stats: dict[str, int] | None = None,
     anchor_enabled: bool = True,
+    preserve_non_compliant_on_quote_fail: bool = False,
 ) -> ComplianceLLMResult:
     """Ensure quotes are verbatim substrings; anchor paraphrases before downgrade."""
     contract_ok = quote_is_substring(result.contract_quote, contract_text)
@@ -144,6 +145,20 @@ def validate_and_normalize_quotes(
                 result = result.model_copy(update={"policy_quote": ""})
             policy_ok = True
         if not contract_ok or not policy_ok:
+            if (
+                preserve_non_compliant_on_quote_fail
+                and result.status == ComplianceStatus.NON_COMPLIANT
+            ):
+                return result.model_copy(
+                    update={
+                        "contract_quote": result.contract_quote if contract_ok else "",
+                        "policy_quote": result.policy_quote if policy_ok else "",
+                        "rationale": (
+                            f"{result.rationale} "
+                            f"({QUOTE_VALIDATE_DOWNGRADE_MARKER}; status preserved.)"
+                        )[:2000],
+                    }
+                )
             return ComplianceLLMResult(
                 status=ComplianceStatus.INCONCLUSIVE,
                 severity=Severity.IMPORTANT,

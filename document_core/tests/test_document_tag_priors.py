@@ -53,3 +53,23 @@ def test_assess_warns_on_unexpected_suppressed_tags() -> None:
         document_union=["security", "general"],
     )
     assert any(w.startswith("unexpected_tags:") for w in warnings)
+
+
+def test_dpa_prior_prefers_privacy_and_cross_border() -> None:
+    result = apply_document_priors(
+        ["employment", "payment"],
+        document_title="Atlassian Data Processing Addendum",
+    )
+    assert "privacy" in result
+    assert "cross_border_transfer" in result
+    assert "employment" not in result
+
+
+def test_ai_terms_prior_prefers_ai_usage() -> None:
+    result = apply_document_priors(
+        ["hr", "employment"],
+        document_title="Atlassian AI Terms",
+    )
+    assert "ai_usage" in result
+    assert "ip" in result
+    assert "hr" not in result

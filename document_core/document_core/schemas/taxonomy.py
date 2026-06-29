@@ -127,3 +127,93 @@ def cap_section_categories(
 def taxonomy_prompt_labels() -> str:
     """Comma-separated allowed category labels for LLM prompts (excludes general)."""
     return ", ".join(sorted(STANDARD_POLICY_CATEGORIES - {"general"}))
+
+
+_TAXONOMY_PROMPT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Commercial / contract",
+        (
+            "liability",
+            "indemnity",
+            "payment",
+            "sla",
+            "termination",
+            "insurance",
+            "governing_law",
+            "procurement",
+        ),
+    ),
+    (
+        "Privacy / data",
+        (
+            "privacy",
+            "data_retention",
+            "secure_deletion",
+            "legal_hold",
+            "data_subject_rights",
+            "cross_border_transfer",
+            "records_management",
+        ),
+    ),
+    (
+        "Security / IT",
+        (
+            "security",
+            "vendor_security",
+            "access_control",
+            "encryption",
+            "incident_reporting",
+            "breach_notification",
+            "audit_rights",
+            "business_continuity",
+        ),
+    ),
+    (
+        "IP / brand",
+        ("ip", "trademark"),
+    ),
+    (
+        "HR / labor / conduct",
+        (
+            "employment",
+            "hr",
+            "labor",
+            "human_rights",
+            "modern_slavery",
+            "forced_labor",
+            "whistleblower",
+        ),
+    ),
+    (
+        "Compliance / risk",
+        (
+            "compliance",
+            "anti_bribery",
+            "aml",
+            "export_control",
+            "sanctions",
+            "vendor_due_diligence",
+        ),
+    ),
+    (
+        "ESG / environment",
+        ("environment", "sustainability", "minerals"),
+    ),
+    ("Other", ("confidentiality", "ai_usage")),
+)
+
+
+def taxonomy_prompt_grouped() -> str:
+    """Grouped taxonomy for LLM prompts — reduces invalid label hallucination."""
+    covered: set[str] = set()
+    lines: list[str] = []
+    for group_name, labels in _TAXONOMY_PROMPT_GROUPS:
+        valid = [label for label in labels if label in STANDARD_POLICY_CATEGORIES]
+        if not valid:
+            continue
+        covered.update(valid)
+        lines.append(f"- {group_name}: {', '.join(valid)}")
+    remainder = sorted(STANDARD_POLICY_CATEGORIES - covered - {"general"})
+    if remainder:
+        lines.append(f"- Other: {', '.join(remainder)}")
+    return "\n".join(lines)

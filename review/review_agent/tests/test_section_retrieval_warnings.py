@@ -39,7 +39,7 @@ async def test_classifier_fallback_warning_in_retrieval_node(monkeypatch) -> Non
                 query_terms=["limitation of liability"],
                 classify_warning="No module named 'langchain'",
             )
-        }
+        }, {}
 
     async def _fake_retrieve(*_args, **_kwargs):
         from review_agent.schemas.section_retrieval import SectionRetrievalBundle

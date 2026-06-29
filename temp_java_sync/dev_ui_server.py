@@ -80,6 +80,7 @@ class ReviewTextBody(BaseModel):
     contract_type: str = "nda"
     use_platform: bool = False
     tenant_id: str | None = None
+    policy_document_ids: list[str] | None = None
 
 
 def _load_config() -> None:
@@ -133,6 +134,7 @@ async def _run_review(
     query: str,
     use_platform: bool,
     policy_source: str = "indexed",
+    policy_document_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     text = contract_text.strip()
     if not text:
@@ -189,7 +191,9 @@ async def _run_review(
         }
     else:
         get_review_settings.cache_clear()
-        os.environ["REVIEW_POLICY_SCOPE"] = policy_source
+        review_scope = "request" if policy_document_ids else policy_source
+        os.environ["REVIEW_POLICY_SCOPE"] = review_scope
+        get_review_settings.cache_clear()
         client = _document_client()
         try:
             state = await run_review(
@@ -198,8 +202,8 @@ async def _run_review(
                 contract_text=text,
                 contract_title=contract_title,
                 contract_type=contract_type,
-                policy_document_ids=None,
-                policy_scope=policy_source,
+                policy_document_ids=policy_document_ids or None,
+                policy_scope=review_scope,
             )
         except (ValueError, RecoverableError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -220,6 +224,16 @@ async def _run_review(
         envelope["contract_text_chars"] = len(text)
 
     envelope["tenant_id"] = tenant
+    warnings = list(envelope.get("warnings") or [])
+    last_sync = _state.get("last_sync")
+    if last_sync:
+        sync_tenant = str(last_sync.get("tenant_id") or "").strip()
+        if sync_tenant and sync_tenant != tenant:
+            warnings.append(
+                f"review tenant {tenant!r} differs from last sync {sync_tenant!r}"
+            )
+    if warnings:
+        envelope["warnings"] = warnings
     OUTPUTS.mkdir(exist_ok=True)
     review_json = json.dumps(envelope, indent=2)
     (OUTPUTS / "review_result.json").write_text(review_json, encoding="utf-8")
@@ -402,6 +416,7 @@ async def api_review_text(body: ReviewTextBody) -> dict[str, Any]:
         contract_type=body.contract_type,
         query=body.query,
         use_platform=body.use_platform,
+        policy_document_ids=body.policy_document_ids,
     )
 
 
