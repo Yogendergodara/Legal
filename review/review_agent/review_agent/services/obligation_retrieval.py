@@ -14,6 +14,7 @@ from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.obligation_retrieval import ObligationRetrievalBundle
 from review_agent.schemas.routing_plan import CatalogMatchResult, ObligationRoutingPlan
 from review_agent.schemas.section_retrieval import SectionRetrievalBundle
+from review_agent.services.ipc3_gates import boilerplate_substantive_override
 from review_agent.services.obligation_relevance import obligation_relevance_categories
 from review_agent.services.multi_retrieval import retrieve_hybrid_attempt
 from review_agent.services.pipeline_mode import parallel_pipeline_active
@@ -306,12 +307,13 @@ async def retrieve_for_obligation(
     core = get_core_settings()
 
     if plan.routing_source == "skipped_boilerplate":
-        return ObligationRetrievalBundle(
-            obligation_id=obligation.obligation_id,
-            section_id=obligation.section_id,
-            concepts=list(plan.concepts),
-            skipped_reason="boilerplate",
-        )
+        if not boilerplate_substantive_override(obligation, plan, cfg):
+            return ObligationRetrievalBundle(
+                obligation_id=obligation.obligation_id,
+                section_id=obligation.section_id,
+                concepts=list(plan.concepts),
+                skipped_reason="boilerplate",
+            )
 
     skip_preflight = (
         match.route_decision == "ipc"

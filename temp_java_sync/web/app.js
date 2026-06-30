@@ -48,7 +48,7 @@ async function checkHealth() {
     const multiPid = (data.port_listener_count || 0) > 1;
     const missingCap = docOk && !caps.includes("search_request_metadata");
     if (!data.llm_configured) {
-      setStatus("LLM key missing — set LLM_API_KEY in review/review_agent/.env", "err");
+      setStatus("LLM key missing — set LLM_API_KEY in temp_java_sync/.env", "err");
     } else if (multiPid) {
       setStatus("WARNING: multiple processes on document-mcp port", "err");
     } else if (missingCap) {
@@ -537,7 +537,7 @@ document.addEventListener("DOMContentLoaded", () => {
     $("tenantId").value = cfg.tenant_id;
     updateActiveTenantPreview();
     if (!cfg.llm_configured) {
-      setStatus("LLM_API_KEY not set — add to review/review_agent/.env", "err");
+      setStatus("LLM_API_KEY not set — add to temp_java_sync/.env", "err");
     }
   } catch {
     setStatus("Dev UI loaded", "");

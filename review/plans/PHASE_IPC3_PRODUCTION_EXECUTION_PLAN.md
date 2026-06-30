@@ -1,15 +1,126 @@
 # Phase IPC-3 — Production IPC Recovery (Execution Plan)
 
-**Version:** 1.1  
+**Version:** 1.4  
 **ID:** `DR-PHASE-IPC3`  
 **Parent:** [PHASE_PR01_PRECISION_FUNNEL_RECOVERY_PLAN.md](./PHASE_PR01_PRECISION_FUNNEL_RECOVERY_PLAN.md) · [PHASE_OB02B_PR02B_POLICY_TAGGER_QUALITY_PLAN.md](./PHASE_OB02B_PR02B_POLICY_TAGGER_QUALITY_PLAN.md) · [PHASE_MCP_GLOBAL_CONCURRENCY_PLAN.md](./PHASE_MCP_GLOBAL_CONCURRENCY_PLAN.md)  
-**Baseline artifact:** `temp_java_sync/outputs/atlassian_pr01_smoke.json` (2026-06-30, `parallel_hybrid`, post PR-01 code + MCP semaphore)  
-**Status:** **PLANNED** — execute in strict experiment order below  
-**Out of scope:** Graph rewrite, disabling `policy_coverage`, global boilerplate off, blind threshold lowering without precision gates  
+**Baseline artifact:** `temp_java_sync/outputs/atlassian_ipc3_baseline.json` (freeze at IPC3-0 — do not use a single ad-hoc smoke as sole reference)  
+**Status:** **IN PROGRESS** — IPC0-R **implemented**; IPC3-0E band **measured**; **E-IDX next**  
+
+---
+
+## 0.1 Measured variance band (IPC3-0E — authoritative)
+
+Source: `temp_java_sync/outputs/ipc3_variance_summary.json` (3 runs, v1 prompt, flags off).
+
+| Metric | min | median | max | Old single baseline |
+|--------|-----|--------|-----|---------------------|
+| `obligation_ipc_rate` | 0.845 | **0.887** | 0.971 | 0.773 |
+| `post_validation_compared` | 2 | **8** | 11 | 15 |
+| `compare_queued` | 24 | **27** | 29 | 29 |
+| `PRE_IPC` | 60 | **63** | 69 | 37 |
+| `routing_or_skip` | 16 | **19** | 22 | 14 |
+| `llm_rate_limit_events` | 6 | **6** | 11 | 8 |
+| `nc_violations` | 0 | **0** | 2 | 0 |
+| Wall time | ~15.5 min | **~16 min** | ~16 min | ~16 min |
+
+**Judgment rule:** E-IDX success = `PRE_IPC` ↓ or `QUEUED` ↑ vs **median** (not vs 0.773). Old 0.773 was a favorable single run.
+
+**IPC0-R code (shipped):** `compare_prompt_loader.py`, `ipc3_gates.py`, env flags, `ipc3_funnel_check.py`, NC quote_validate fix.
+
+---
+
+## 0. Start here — mandatory order (do not skip)
+
+Nothing in this plan is judged until these complete **in this order**:
+
+```text
+Step 0  IPC0-R   Recover frozen runtime config (prompt v1 + flags off)     ← FIRST
+Step 1  IPC3-0E  3× smoke → measured variance band (not §1.3 placeholders)
+Step 2  IPC3-0A–D  Freeze baseline artifact + audit export (can overlap 0E)
+Step 3  E-INF1   429-clean keys (if not already)
+Step 4  E-IDX    MCP restart + re-sync (only after band exists)
+Step 5  E-BP / E-RT2 / E-EV / E-LLM1  one flag per smoke
+```
+
+**Do not jump to E-IDX after a bad smoke** — that repeats the single-point comparison mistake.
+
+### IPC0-R — Recover frozen runtime (blocking, before IPC3-0E)
+
+**Confirmed repo state (2026-07):** E-LLM1 **overwrote** `obligation_compare.md` **in place** (commit `d8f1c0e`). There is **no** `OBLIGATION_COMPARE_PROMPT_V2` flag in code yet — loader always reads the current file (`obligation_compare_llm.py` → `prompts/obligation_compare.md`).
+
+| Item | Current state | Frozen config for variance band |
+|------|---------------|----------------------------------|
+| Obligation compare prompt | **v2 live** (batch rules, IPC/INCONCLUSIVE split) | **v1** from git `825575a` |
+| `IPC3_BOILERPLATE_SUBSTANTIVE_OVERRIDE_ENABLED` | `false` | `false` |
+| `EVIDENCE_SEMANTIC_OVERLAP_ENABLED` | `false` | `false` |
+| E-INF1 key pool | **on** in `review_agent/.env` | **on** (document; isolate 429 separately) |
+
+**IPC0-R1 — Prompt recovery (required):**
+
+**Verify parent commit (run before restore):**
+
+```powershell
+git log --oneline -5 -- review/review_agent/review_agent/prompts/obligation_compare.md
+# Expect: d8f1c0e (v2 overwrite) then 825575a (last v1) — only these two commits touch this file.
+# Use the commit *immediately below* the overwrite as V1_REV (currently 825575a).
+```
+
+Confirmed 2026-07: for this file, `825575a` is the sole parent revision before `d8f1c0e` (not a distant ancestor).
+
+```powershell
+cd d:\Ankit_legal\Legal
+$V1_REV = "825575a"   # re-confirm via git log above before each restore
+git show "${V1_REV}:review/review_agent/review_agent/prompts/obligation_compare.md" `
+  > review/review_agent/review_agent/prompts/obligation_compare_v1.md
+# Keep current content as v2:
+Copy-Item review/review_agent/review_agent/prompts/obligation_compare.md `
+  review/review_agent/review_agent/prompts/obligation_compare_v2.md
+# Restore v1 as the active prompt until E-LLM1 experiment:
+git show "${V1_REV}:review/review_agent/review_agent/prompts/obligation_compare.md" `
+  > review/review_agent/review_agent/prompts/obligation_compare.md
+```
+
+**IPC0-R2 — Loader flag (code, same PR as above):**
+
+- Add `OBLIGATION_COMPARE_PROMPT_V2_ENABLED=false` (default **false**)
+- Loader: `v1` when false, `v2` when true — never overwrite `obligation_compare.md` again
+
+**IPC0-R pass:** `git diff` shows v1 active; v1 and v2 files both exist; flag default false.
+
+**IPC-NC1 — Empty-quote NC (parallel, not blocked on band):**
+
+Post-smoke finding `9:6` Refund Policy — `NON_COMPLIANT` with `contract_quote=""`, `downgrade_source=quote_validate`, status **preserved** as NC. Investigate **before** treating NC count as noise:
+
+| Check | Action |
+|-------|--------|
+| IPC-NC1A | File ticket: `outputs/ipc3_nc_empty_quote.json` with finding_id `e36b227e-9190-41a2-89d8-6f749d23d799` |
+| IPC-NC1B | Trace `quote_validate` / `grounding` — NC must not survive with empty `contract_quote` (downgrade to INCONCLUSIVE or IPC) |
+| IPC-NC1C | Re-run section 9 only after fix — independent of variance band |
+
+This is a **grounding bug candidate**, not IPC-rate noise.
 
 ---
 
 ## 1. Executive summary
+
+### 1.1 Critical rule — code merged ≠ plan executed
+
+**Lesson (post-implementation smoke, 2026-07):** Merging IPC-3 code + running one smoke **without E-IDX** produced **worse** IPC (0.773 → 0.818). That is **expected** under this plan, not a plan failure — but the plan previously allowed confusing **implementation** with **activation**.
+
+| What landed | Active at smoke? | Moves IPC? |
+|-------------|------------------|------------|
+| IPC3-0 telemetry / funnel check | Yes | **No** |
+| E-BP2 boilerplate override | **No** (`…_ENABLED=false`) | No |
+| E-EV1 semantic overlap | **No** (`…_ENABLED=false`) | No |
+| **E-LLM1** compare prompt | **Yes** (prompt file live) | L2 only — small |
+| **E-INF1** key pool | **Yes** | Section / timing |
+| **E-IDX** re-sync | **No** | **L1 fix — missing** |
+
+**Regression driver:** `routing_or_skip` 14 → **21** (+7) → `PRE_IPC` 37 → **43**. Main fixes for that bucket were **not applied**. Remainder = `parallel_hybrid` run variance.
+
+**Do not call a smoke "post-IPC3 success/failure" until E-IDX completes.** Until then, only compare to **variance band** (§1.3).
+
+### 1.2 Problem statement (unchanged)
 
 Atlassian obligation IPC is **not one bug**. It is a **partitioned funnel** with three independent IPC layers. Fixes must be **measured one experiment at a time** with **paired precision metrics** — not IPC count alone.
 
@@ -32,6 +143,60 @@ Atlassian obligation IPC is **not one bug**. It is a **partitioned funnel** with
 | `section_ipc_pct` | 88.9% | < 50% (429-clean) |
 | `llm_rate_limit_events` | 8 | 0 on validation run |
 | `section_compare_failed` findings | 4 | 0 |
+
+### 1.3 Variance band (required before declaring regression)
+
+`parallel_hybrid` + hybrid retrieval + LLM planner are **not deterministic**. A single before/after smoke **will lie**.
+
+**IPC3-0E (blocking — runs after IPC0-R, before E-IDX or any IPC judgment):**
+
+| Step | Action |
+|------|--------|
+| IPC3-0E0 | Complete **IPC0-R** (v1 prompt active, BP2/EV1 flags off) |
+| IPC3-0E1 | Run **3×** `run_pr01_atlassian_smoke.py` on **identical** frozen config |
+| IPC3-0E2 | Write `outputs/ipc3_variance_summary.json` with **min / max / median** per layer metric |
+| IPC3-0E3 | Replace §1.3 table below with **measured** values — until then, ignore the illustrative row |
+
+**Illustrative only (2 data points — NOT a calibrated band):**
+
+| Metric | Placeholder (do not use for decisions) |
+|--------|----------------------------------------|
+| `PRE_IPC` | saw 37 and 43 in two runs |
+| `routing_or_skip` | saw 14 and 21 |
+| `obligation_ipc_rate` | saw 0.773 and 0.818 |
+
+**After IPC3-0E2, §1.3 table must be replaced with:**
+
+```json
+{
+  "runs": ["ipc3_variance_run_1.json", "ipc3_variance_run_2.json", "ipc3_variance_run_3.json"],
+  "PRE_IPC": {"min": null, "max": null, "median": null},
+  "compare_queued": {"min": null, "max": null, "median": null},
+  "obligation_ipc_rate": {"min": null, "max": null, "median": null}
+}
+```
+
+**Regression declaration rule:** New smoke is a **regression** only if:
+
+1. Same bucket schema version, **and**
+2. Metric outside **measured** 3-run min/max band (not illustrative), **and**
+3. The **activated experiment** explains the bucket (e.g. E-BP2 on → boilerplate should ↓).
+
+Otherwise label: **VARIANCE — hold** (do not tune gates).
+
+### 1.4 Release tiers (code ship vs experiment activate)
+
+| Tier | Contents | Default flags | When to smoke |
+|------|----------|---------------|---------------|
+| **R0** | Tests, funnel check, audit export | BP2/EV1 off, **prompt v1** | Only for **IPC3-0E** band — **no IPC judgment** |
+| **R1** | E-INF1 keys | pool on | 429 metrics only |
+| **R2** | **E-IDX** re-sync | N/A | **First IPC judgment** vs variance band |
+| **R3** | E-BP2 / E-EV1 / E-RT2 | one flag per experiment | One per smoke |
+| **R4** | E-LLM1 prompt v2 | `OBLIGATION_COMPARE_PROMPT_V2_ENABLED=false` | Isolated A/B only |
+
+**Already-merged state (failed run):** v2 prompt was live without flag; **IPC0-R reverses this** before any new smoke.
+
+**Forbidden:** Ship R0+R4 in one merge; run E-IDX before IPC3-0E; use §1.3 placeholder as band.
 
 ---
 
@@ -272,38 +437,37 @@ Track E — Validation
 
 ---
 
-### Phase 0 — IPC-3 measurement baseline (0.25 day)
+### Phase 0 — IPC-3 measurement (order matters)
 
-**Goal:** Freeze reconciled baseline; export audit inputs.
+```text
+IPC0-R  →  IPC3-0E (3 smokes)  →  IPC3-0A–D (freeze + audit)
+```
+
+**Do not run IPC3-0A–D before IPC0-R.** Do not run E-IDX before IPC3-0E.
+
+#### IPC3-0E — Variance band (**first measurable step after IPC0-R**)
+
+| Task | Action |
+|------|--------|
+| IPC3-0E0 | Confirm **IPC0-R** complete (v1 prompt, flags off) |
+| IPC3-0E1 | 3× `run_pr01_atlassian_smoke.py` → `outputs/ipc3_variance_run_{1,2,3}.json` |
+| IPC3-0E2 | Write `outputs/ipc3_variance_summary.json` (min / max / median per layer) |
+| IPC3-0E3 | Update §1.3 measured table in this doc |
+
+**Pass:** 3 runs committed; band is authoritative. **BLOCKS E-IDX.**
+
+#### IPC3-0A–D — Freeze + audit (after 0E)
+
+**Operational lock:** IPC3-0A **must** copy `ipc3_variance_run_1.json` (not a fresh smoke). Baseline freeze and audit export use the **same R0 frozen config** as all three variance runs — do not re-run smoke for 0A unless variance run #1 is missing.
 
 | Task | Action | Deliverable |
 |------|--------|-------------|
-| IPC3-0A | Copy smoke → `outputs/atlassian_ipc3_baseline.json` | Frozen reference |
-| IPC3-0B | Run `_ipc_reason_report.py` on baseline | Committed report snippet in PR |
-| IPC3-0C | Export 17 boilerplate + 14 routing_or_skip obligation texts | `outputs/ipc3_boilerplate_audit.jsonl` |
-| IPC3-0D | Funnel identity assert in smoke stderr; **log `skip_by_reason` schema version** `ipc3_bucket_v1` | Fail fast if sums break; freeze bucket semantics at baseline |
+| IPC3-0A | Copy variance run #1 → `atlassian_ipc3_baseline.json` | Frozen reference |
+| IPC3-0B | `_ipc_reason_report.py` on baseline | Report snippet |
+| IPC3-0C | Export → `ipc3_obligation_audit.jsonl` | E-BP1 input |
+| IPC3-0D | Funnel identity assert; log `ipc3_bucket_v1` | Sum check only |
 
-**Bucket schema version:** Commit `outputs/ipc3_bucket_schema_v1.json` listing each `skip_by_reason` key → code path that sets it (file + function). Bump version when E-BP2 / E-EV1 / E-RT2 ship; post-bump runs compare layer totals only vs prior run with same schema version.
-
-**Script (IPC3-0C):**
-
-```python
-# outputs/export_ipc_audit.py — extract obligation IPC rationales by skip reason
-import json
-from pathlib import Path
-review = json.loads(Path("atlassian_pr01_smoke.json").read_text(encoding="utf-8"))
-for f in review["findings"]:
-    m = f.get("metadata") or {}
-    if m.get("source") != "obligation_ipc":
-        continue
-    r = f.get("rationale", "")
-    for tag in ("boilerplate", "routing_or_skip", "low_relevance_score", "low_concept_overlap"):
-        if f"({tag})" in r or f": {tag}" in r:
-            print(json.dumps({"id": f.get("dimension_id"), "section": f.get("contract_section_id"), "tag": tag, "quote": (f.get("contract_quote") or "")[:300]}))
-            break
-```
-
-**Pass:** Baseline identities in §2 all hold; audit file has 31 rows (17+14).
+**Bucket schema:** `review/plans/ipc3_bucket_schema_v1.json`
 
 ---
 
@@ -349,7 +513,7 @@ for f in review["findings"]:
 1. `validate_policy_sync()` returns `[]`
 2. `weak_tag_count=0`, all policies `tagger=llm`
 3. E-IDX6 smoke: `llm_rate_limit_events=0` (or document E-INF1 still pending)
-4. Layer improvement: `PRE_IPC` ↓ **or** `QUEUED` ↑ vs previous artifact (same bucket schema)
+4. Layer improvement: `PRE_IPC` ↓ **or** `QUEUED` ↑ vs **variance band median** (same bucket schema)
 
 **Decision if hypothesis missed but hard gates pass:**
 
@@ -359,9 +523,20 @@ for f in review["findings"]:
 | E-RT2 trigger | `routing_or_skip` still **> 10** | Proceed to E-RT2 per §6 (do not re-run E-IDX) |
 | No layer movement | `PRE_IPC` unchanged, `weak_tag_count=0` | **HOLD** — investigate AUP spot-check failures before E-RT2 |
 
-**Do not fail E-IDX** solely because `routing_or_skip=11` instead of `<10`. The `<10` target is for **E-VAL** final battery; E-IDX pass is IPC-2 + layer movement.
+**Do not fail E-IDX** solely because `routing_or_skip=11` instead of `<10`. The `<10` target is for **E-VAL** final battery; E-IDX pass is IPC-2 + layer movement vs **variance band**.
 
-**Rollback:** Re-sync from last good `sync_atlassian_e2e-demo.json` snapshot.
+**If E-IDX hard gates fail (distinct from rollback):**
+
+| Failure | Meaning | Action — **do not** re-sync again blindly |
+|---------|---------|------------------------------------------|
+| `validate_policy_sync()` errors | Sync harness / MCP / DB | Fix errors in log; check MCP health; re-run E-IDX3–4 only |
+| `weak_tag_count > 0` after re-sync | OB-02B tagger code not on MCP or prompt not applied | `git log` MCP build; confirm `document_core` changes in running process; fix tagger, restart MCP, re-sync |
+| AUP spot-check fails (§E-IDX5) | Tags still broad | **Stop E-IDX** — debug OB-02B (`category_tagger.py`, prompt, priors) before third re-sync |
+| E-IDX6 smoke: no layer movement vs band, hard gates pass | Index OK; routing variance or wrong policy index tenant | Compare `routing_or_skip` to band; inspect catalog hits; consider E-RT2 — **not** another full re-sync |
+
+**Rollback (regression — made things worse):** Re-sync from `sync_atlassian_e2e-demo.json` snapshot. Use only when sync **corrupted** index or wrong tenant — not when tagger logic is broken.
+
+**Rollback vs debug:** Rollback = restore data; Debug = fix code when hard gates fail.
 
 ---
 
@@ -369,22 +544,44 @@ for f in review["findings"]:
 
 **Hypothesis:** False boilerplate skips are material; rule override recovers compare queue without spam.
 
-#### E-BP1 — Manual audit (required before code)
+**Code status:** E-BP2 below is a **draft spec only** — do not implement until E-BP1 audit completes and tier rule selects E-BP2.
+
+#### E-BP1 — Manual audit (required before any code)
 
 | Step | Action |
 |------|--------|
-| E-BP1A | Label each of 17 obligations: `CORRECT_SKIP` \| `FALSE_SKIP` |
-| E-BP1B | Compute `false_skip_rate = FALSE_SKIP / 17` |
+| E-BP1A | Export 17 obligations → `outputs/ipc3_boilerplate_audit.jsonl` (IPC3-0C) |
+| E-BP1B | Rater A labels all 17 using rubric below |
+| E-BP1C | Rater B (second person or blind re-read after 24h) labels **5 stratified samples**: 2 shortest quotes, 2 longest, 1 with `explicit_policy_mentions` if any |
+| E-BP1D | **Agreement:** ≥4/5 match between raters; if <4/5, discuss disagreements and re-label all 17 before proceeding |
+| E-BP1E | Compute `false_skip_rate = FALSE_SKIP / 17` |
+
+**FALSE_SKIP rubric (must cite one primary criterion in audit JSONL):**
+
+| Label | Criteria — mark **FALSE_SKIP** if **any** apply |
+|-------|--------------------------------------------------|
+| **CORRECT_SKIP** | Pure definition / cross-ref / notice mechanics / signature / governing-law boilerplate with **no** testable compliance duty |
+| **FALSE_SKIP** | Imposes or references a **testable duty** (payment, liability, data, security, termination, IP, SLA, indemnity, audit rights) |
+| **FALSE_SKIP** | Names a **specific policy document** (DPA, AUP, Product Terms) or contains `explicit_policy_mentions` |
+| **FALSE_SKIP** | Would be **material to NC** if wrong (operator judgment — document reason in audit row) |
+
+**Audit row schema:**
+
+```json
+{"obligation_id": "...", "section_id": "...", "quote_snip": "...", "rater": "A", "label": "CORRECT_SKIP", "primary_criterion": "pure_definition", "notes": ""}
+```
 
 **Decision rule:**
 
 | `false_skip_rate` | Action |
 |-------------------|--------|
-| **< 15%** (≤2) | **No prompt change.** Boilerplate working; focus E-IDX / E-EV1 |
-| **15–35%** (3–6) | Ship E-BP2 targeted override only |
-| **> 35%** | E-BP2 + E-BP3 planner/extract prompt review |
+| **≤ 2/17 (< 12%)** | **No E-BP2.** Boilerplate gate OK; proceed E-IDX / E-EV1 |
+| **3–6/17 (12–35%)** | Implement E-BP2 only; re-smoke; bump bucket schema to `v2` |
+| **≥ 7/17 (> 35%)** | E-BP2 + E-BP3 planner/extract prompt review |
 
-#### E-BP2 — Code: substantive override (PR-06C extension)
+**Boundary:** At exactly 2/17 (11.8%) → **No E-BP2** (round down, conservative on code change).
+
+#### E-BP2 — Code: substantive override (PR-06C extension) — **gated by E-BP1**
 
 **File:** `obligation_retrieval.py` + `catalog_matcher.py`
 
@@ -409,11 +606,12 @@ if plan.routing_source == "skipped_boilerplate" and not override:
 | `tests/test_obligation_retrieval.py` | Named-policy mention in boilerplate section → retrieval runs |
 | `tests/test_catalog_matcher.py` | Boilerplate + explicit mention → not instant IPC |
 
-**Pass (isolated smoke):**
+**Pass (isolated smoke):** Bump bucket schema `ipc3_bucket_v2`.
 
-- `boilerplate` skip ↓ by ≥ 3 **and** `compare_queued` ↑ by ≥ 3
+- `PRE_IPC` ↓ ≥ 3 **and** `QUEUED` ↑ ≥ 3 (layer totals — §2.0)
 - `wrong_policy_blocked` stays 0
 - No new NC on sections 15, 19, 20.4 (spot check)
+- Re-audit: ≤1/10 newly queued obligations labeled `FALSE_POSITIVE` (paired precision)
 
 **Anti-pattern:** Do not set `infer_obligation_boilerplate` to always `False`.
 
@@ -444,7 +642,24 @@ if plan.routing_source == "skipped_boilerplate" and not override:
 
 ### Experiment E-EV1 — PR-04B semantic evidence overlap (1.5 days) ⭐ precision-safe
 
-**Goal:** Replace lexical-only veto for paraphrase pairs without lowering thresholds.
+**Goal:** Replace lexical-only veto for paraphrase pairs without lowering lexical thresholds.
+
+#### E-EV1-0 — Threshold calibration (required before shipping config)
+
+**Do not set `EVIDENCE_MIN_SEMANTIC_OVERLAP=0.72` until calibration artifact exists.**
+
+| Step | Action |
+|------|--------|
+| E-EV1-0A | From baseline smoke, sample **20 obligation×hit pairs**: 10 known `low_concept_overlap` IPC + 10 known `evidence_sufficient` compare |
+| E-EV1-0B | Add **10 wrong-fence pairs**: obligation vs hit from non-candidate doc (should stay blocked) |
+| E-EV1-0C | Run `scripts/calibrate_semantic_overlap.py` (or notebook) — embed both sides, record cosine sim |
+| E-EV1-0D | Plot / table: TP paraphrase sims vs FP wrong-policy sims |
+| E-EV1-0E | Choose threshold at **maximize TP−FP**: target ≥90% TP pass, ≥90% FP block on calibration set |
+| E-EV1-0F | Commit `outputs/ipc3_semantic_overlap_calibration.json` with chosen threshold |
+
+**Starting search grid:** 0.65, 0.68, 0.72, 0.75 — pick from calibration, not default.
+
+**If calibration spread overlaps** (TP and FP same band): ship E-EV1 mechanism with `EVIDENCE_SEMANTIC_OVERLAP_ENABLED=false` in prod; escalate to embedding model review — do not guess 0.72.
 
 #### E-EV1A — New module
 
@@ -477,11 +692,11 @@ def _hits_pass_gates(...):
     return False
 ```
 
-**New config:**
+**New config (values from E-EV1-0 calibration artifact):**
 
 ```env
 EVIDENCE_SEMANTIC_OVERLAP_ENABLED=true
-EVIDENCE_MIN_SEMANTIC_OVERLAP=0.72
+EVIDENCE_MIN_SEMANTIC_OVERLAP=<from ipc3_semantic_overlap_calibration.json>
 ```
 
 #### E-EV1C — Tests
@@ -521,11 +736,17 @@ EVIDENCE_MIN_SEMANTIC_OVERLAP=0.72
 
 ### Experiment E-LLM1 — Post-LLM IPC reduction (1 day)
 
-**Gate:** `compare_queued` ≥ 33 from prior experiments.
+**Gate:** `compare_queued` ≥ 33 from prior experiments. **E-IDX complete.** **IPC0-R already split v1/v2 files.**
+
+**Prerequisite:** `obligation_compare_v1.md` and `obligation_compare_v2.md` exist; active file selected by flag only.
+
+```env
+OBLIGATION_COMPARE_PROMPT_V2_ENABLED=false   # default until E-LLM1 smoke
+```
 
 | Task | Detail |
 |------|--------|
-| E-LLM1A | `obligation_compare.md`: distinguish “policy silent on topic” (INCONCLUSIVE) vs “policy clearly addresses topic” (must pick COMPLIANT/NC) |
+| E-LLM1A | v2 prompt in `obligation_compare_v2.md` only (never overwrite v1) |
 | E-LLM1B | Pass top **4** hits per obligation (today may truncate to fewer in batch formatter) — `obligation_compare_llm.py` `_format_obligations_block` |
 | E-LLM1C | Include parent section title + `policy_ref` breadcrumb in each hit block |
 
@@ -578,21 +799,58 @@ python _ipc_reason_report.py outputs/atlassian_pr01_smoke.json
 - Raise `CATALOG_MATCH_MAX_CANDIDATES` and lower `min_score` in same run
 - Judge NC success while `llm_rate_limit_events` > 0
 - Disable boilerplate skips globally
+- **Merge IPC-3 code + E-LLM1 prompt + smoke once** without E-IDX (caused 0.773→0.818 false alarm)
+- **Declare regression from one smoke** outside variance band (§1.3)
 
 ---
 
-## 8. Expected cumulative impact (honest ranges)
+**Pass:** Bump bucket schema `ipc3_bucket_v3`.
 
-| Experiment | `obligation_ipc_rate` delta | Confidence |
-|------------|----------------------------|------------|
-| E-INF1 alone | −0.03 to −0.05 (section path) | High for section; low for obligation |
-| E-IDX alone | −0.08 to −0.12 | Medium — depends on AUP tag distribution |
-| E-BP (if false_skip ≥ 15%) | −0.05 to −0.08 | Medium — audit-dependent |
-| E-EV1 | −0.04 to −0.07 | High if semantic embed quality matches hybrid |
-| E-LLM1 | −0.06 to −0.10 on L2 only | Medium |
-| **Stacked (all pass)** | **0.77 → 0.42–0.48** | Target range |
+- `PRE_IPC` ↓ or `QUEUED` ↑ vs prior run (same schema chain)
+- RC-EV bucket sum (`low_*` + `insufficient_evidence`) **≤ 4** (from 6)
+- `compare_queued` **≥ 33**
+- `wrong_policy_blocked` = 0
+- Calibration holdout: ≥8/10 TP pass, ≥8/10 FP block on E-EV1-0 pairs
 
-**Do not sum upper bounds linearly** — experiments overlap (better tags help both L1 and L2).
+---
+
+## 8. Expected cumulative impact (honest ranges — not commitments)
+
+Per-experiment deltas are **directional hypotheses**. Stacked range is a **sanity check only**.
+
+### 8.1 Per-experiment (isolated)
+
+| Experiment | Primary layer | `obligation_ipc_rate` delta | Confidence |
+|------------|---------------|----------------------------|------------|
+| E-INF1 alone | Section / L2 edge | −0.03 to −0.05 | High section; low obligation |
+| E-IDX alone | L1 + L2 | −0.08 to −0.12 | Medium |
+| E-BP (if audit warrants) | L1 | −0.05 to −0.08 | Medium — audit-dependent |
+| E-RT2 | L1 | −0.03 to −0.06 | Medium |
+| E-EV1 | L1 | −0.04 to −0.07 | Medium until calibration done |
+| E-LLM1 | L2 only | −0.06 to −0.10 | Medium |
+
+### 8.2 Stacked estimate method (do not linearly sum)
+
+Use **layer budget** from baseline:
+
+```text
+L1 PRE_IPC = 37  → target ≤ 20  (need −17)
+L2 llm_ipc   = 14  → target ≤ 8   (need −6)
+L3 compared  = 15  → target ≥ 25  (need +10)
+
+ipc_rate = (L1 + L2) / 66
+Target: (20 + 8) / 66 ≈ 0.42
+```
+
+**Overlap accounting:**
+
+- E-IDX helps L1 (`routing_or_skip`) **and** L2 (better hits → fewer LLM IPC) — count once toward L1, tag L2 as secondary
+- E-LLM1 helps L2 only — no L1 credit
+- E-INF1 helps section path — subtract from section IPC, not L1 budget
+
+**Stacked sanity range 0.42–0.48** = if L1 reaches 20–22 and L2 reaches 8–10 simultaneously. **Not a sprint commitment** — E-VAL gates (`ipc_rate < 0.50`) are the actual ship bar.
+
+**Do not sum upper bounds linearly** — experiments overlap on shared retrieval quality.
 
 ---
 
@@ -621,18 +879,17 @@ python _ipc_reason_report.py outputs/atlassian_pr01_smoke.json
 
 ---
 
-## 11. Checklist (operator)
+## 11. Checklist (operator) — strict order
 
-- [ ] IPC3-0: Baseline frozen + funnel identities verified
-- [ ] E-INF1: 3 real keys both `.env`; `llm_rate_limit_events=0` on smoke
-- [ ] E-IDX: MCP restarted; `weak_tag_count=0`; AUP spot-check
-- [ ] E-BP1: Boilerplate audit JSONL completed; decision rule applied
-- [ ] E-BP2: Code shipped only if audit warrants
-- [ ] E-RT2: Only if `routing_or_skip` > 10 post E-IDX
-- [ ] E-EV1: Semantic overlap shipped + tests green
-- [ ] E-EV2: Only if E-EV1 insufficient + precision sample pass
-- [ ] E-LLM1: `llm_ipc_count` < 8
-- [ ] E-VAL: `obligation_ipc_rate` < 0.50; NC ≥ 4; battery clean
+- [ ] **IPC0-R:** v1 prompt restored; v1+v2 files; `OBLIGATION_COMPARE_PROMPT_V2_ENABLED=false`
+- [ ] **IPC-NC1:** Empty-quote NC `9:6` filed + `quote_validate` behavior checked
+- [ ] **IPC3-0E:** 3-run variance band → `ipc3_variance_summary.json` (**blocks E-IDX**)
+- [ ] IPC3-0A–D: Baseline frozen + audit JSONL + bucket schema v1
+- [ ] E-INF1: `llm_rate_limit_events=0` on band runs (or documented exception)
+- [ ] **E-IDX:** Only after band — hard-gate fail → debug table §6, not blind re-sync
+- [ ] E-BP1: Audit rubric + rater agreement
+- [ ] E-BP2 / E-EV1 / E-RT2 / E-LLM1: one flag per smoke vs band
+- [ ] E-VAL: `obligation_ipc_rate` < 0.50; NC ≥ 4 on 429-clean run
 
 ---
 

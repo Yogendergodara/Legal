@@ -42,7 +42,11 @@ async def main() -> int:
     get_settings.cache_clear()
     settings = get_settings()
     if not os.environ.get("LLM_API_KEY") and not os.environ.get("MISTRAL_API_KEY"):
-        print("ERROR: set LLM_API_KEY in temp_java_sync/.env for real review", file=sys.stderr)
+        from review_agent.models.llm_key_pool import parse_api_keys
+        from review_agent.config import get_settings
+
+        if not parse_api_keys(get_settings()):
+            print("ERROR: set LLM_API_KEY in temp_java_sync/.env for real review", file=sys.stderr)
         return 1
 
     client = DocumentMCPClient(base_url)

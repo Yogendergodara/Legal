@@ -148,6 +148,7 @@ def validate_and_normalize_quotes(
             if (
                 preserve_non_compliant_on_quote_fail
                 and result.status == ComplianceStatus.NON_COMPLIANT
+                and contract_ok
             ):
                 return result.model_copy(
                     update={

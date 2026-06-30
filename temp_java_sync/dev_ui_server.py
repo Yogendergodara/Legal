@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 
 from bootstrap_env import load_env, setup_pythonpath
 
-load_env()
+load_env(dev_ui=True)
 setup_pythonpath()
 
 from document_core.schemas.chunk import DocumentKind, SearchRequest  # noqa: E402
@@ -104,7 +104,12 @@ def _save_config() -> None:
 
 
 def _llm_configured() -> bool:
-    return bool(os.environ.get("LLM_API_KEY") or os.environ.get("MISTRAL_API_KEY"))
+    from review_agent.config import get_settings
+    from review_agent.models.llm_key_pool import parse_api_keys
+
+    get_settings.cache_clear()
+    keys = [k for k in parse_api_keys(get_settings()) if k and "PASTE_KEY" not in k]
+    return bool(keys)
 
 
 def _document_client() -> DocumentMCPClient:
@@ -143,7 +148,7 @@ async def _run_review(
     if not _llm_configured():
         raise HTTPException(
             status_code=400,
-            detail="LLM_API_KEY not set — add it to review/review_agent/.env or temp_java_sync/.env",
+            detail="LLM_API_KEY not set — add it to temp_java_sync/.env",
         )
 
     if use_platform:

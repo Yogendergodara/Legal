@@ -50,6 +50,24 @@ def test_nc_preserved_when_quote_fail_and_preserve_flag():
         policy_text="Policy limits liability to twelve months fees.",
         preserve_non_compliant_on_quote_fail=True,
     )
+    assert normalized.status == ComplianceStatus.INCONCLUSIVE
+
+
+def test_nc_preserved_when_policy_quote_fails_but_contract_grounded():
+    result = ComplianceLLMResult(
+        status=ComplianceStatus.NON_COMPLIANT,
+        severity=Severity.CRITICAL,
+        contract_quote="Contract limits liability to fees paid.",
+        policy_quote="not in policy",
+        rationale="Mismatch on liability cap requirements in the agreement.",
+        confidence=0.9,
+    )
+    normalized = validate_and_normalize_quotes(
+        result,
+        contract_text="Contract limits liability to fees paid.",
+        policy_text="Policy limits liability to twelve months fees.",
+        preserve_non_compliant_on_quote_fail=True,
+    )
     assert normalized.status == ComplianceStatus.NON_COMPLIANT
     assert "status preserved" in normalized.rationale
 

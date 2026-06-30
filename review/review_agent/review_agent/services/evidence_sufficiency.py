@@ -11,6 +11,8 @@ from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.obligation_retrieval import ObligationRetrievalBundle
 from review_agent.schemas.routing_plan import CatalogMatchResult, ObligationRoutingPlan
 
+from review_agent.services.concept_overlap import semantic_concept_overlap
+
 _TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
 
 
@@ -85,6 +87,14 @@ def _rerank_bypass_passes(
     return concept_overlap >= half_floor
 
 
+def _semantic_overlap_passes(semantic_overlap: float | None, settings: ReviewSettings) -> bool:
+    if not settings.evidence_semantic_overlap_enabled:
+        return False
+    if semantic_overlap is None:
+        return False
+    return semantic_overlap >= settings.evidence_min_semantic_overlap
+
+
 def _hits_pass_gates(
     *,
     hit_count: int,
@@ -93,6 +103,7 @@ def _hits_pass_gates(
     doc_coverage: float,
     routing_confidence: float,
     settings: ReviewSettings,
+    semantic_overlap: float | None = None,
 ) -> bool:
     if hit_count < settings.evidence_min_hits:
         return False
@@ -101,6 +112,8 @@ def _hits_pass_gates(
     if settings.evidence_min_doc_coverage > 0 and doc_coverage < settings.evidence_min_doc_coverage:
         return False
     if _lexical_overlap_passes(concept_overlap, settings):
+        return True
+    if _semantic_overlap_passes(semantic_overlap, settings):
         return True
     return _rerank_bypass_passes(
         max_score=max_score,
@@ -132,6 +145,14 @@ def evaluate_evidence_sufficiency(
     max_score = _max_hit_score(hits)
     overlap = concept_overlap_score(plan=plan, obligation=obligation, hits=hits)
     coverage = candidate_doc_coverage(hits, _candidate_doc_ids(match, bundle))
+    semantic_overlap: float | None = None
+    if cfg.evidence_semantic_overlap_enabled and hits:
+        semantic_overlap = semantic_concept_overlap(
+            obligation=obligation,
+            plan=plan,
+            hits=hits,
+            settings=cfg,
+        )
 
     base = EvidenceSufficiencyResult(
         obligation_id=obligation.obligation_id,
@@ -167,6 +188,7 @@ def evaluate_evidence_sufficiency(
         doc_coverage=coverage,
         routing_confidence=plan.confidence,
         settings=cfg,
+        semantic_overlap=semantic_overlap,
     )
 
     if plan.confidence < cfg.routing_ipc_max_confidence:
@@ -198,6 +220,10 @@ def evaluate_evidence_sufficiency(
     if hit_count and max_score < cfg.evidence_min_score:
         reason = "low_relevance_score"
     elif hit_count and not _lexical_overlap_passes(overlap, cfg):
+        if _semantic_overlap_passes(semantic_overlap, cfg):
+            return base.model_copy(
+                update={"decision": "compare", "reason": "evidence_sufficient"},
+            )
         if _rerank_bypass_passes(
             max_score=max_score,
             concept_overlap=overlap,

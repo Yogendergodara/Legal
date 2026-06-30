@@ -35,9 +35,9 @@ from review_agent.services.token_budget import (
     split_obligations_by_token_budget,
 )
 
-logger = logging.getLogger(__name__)
+from review_agent.services.compare_prompt_loader import obligation_compare_prompt_path
 
-_PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "obligation_compare.md"
+logger = logging.getLogger(__name__)
 
 
 def _split_prompt(raw: str) -> tuple[str, str]:
@@ -230,7 +230,7 @@ async def _invoke_compare_batch(
     cfg: ReviewSettings,
     playbook_hints_by_document: dict[str, PlaybookHints] | None,
 ) -> BatchObligationCompareLLMResult:
-    template = _PROMPT_PATH.read_text(encoding="utf-8")
+    template = obligation_compare_prompt_path(cfg).read_text(encoding="utf-8")
     system_tpl, user_tpl = _split_prompt(template)
     block = _format_obligations_block(
         obligations,

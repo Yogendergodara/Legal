@@ -244,6 +244,13 @@ class ReviewSettings(BaseSettings):
     obligation_compare_batch_size: int = 24
     obligation_compare_max_tokens: int = 48_000
     obligation_compare_max_obligation_chars: int = 3000
+    # IPC0-R — v2 prompt gated until E-LLM1 experiment
+    obligation_compare_prompt_v2_enabled: bool = False
+    # IPC3 E-BP2 — boilerplate substantive override (default off)
+    ipc3_boilerplate_substantive_override_enabled: bool = False
+    # IPC3 E-EV1 — semantic overlap gate (default off; calibrate before enable)
+    evidence_semantic_overlap_enabled: bool = False
+    evidence_min_semantic_overlap: float = 0.72
     obligation_section_cutover_mode: Literal["skip", "legacy_parallel", "ipc_fallback"] = "ipc_fallback"
 
     routing_cache_enabled: bool = True

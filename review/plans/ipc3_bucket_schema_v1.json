@@ -1,0 +1,42 @@
+{
+  "schema_version": "ipc3_bucket_v1",
+  "frozen_at": "2026-06-30",
+  "baseline_artifact": "temp_java_sync/outputs/atlassian_pr01_smoke.json",
+  "skip_by_reason": {
+    "evidence_sufficient": {
+      "decision": "compare",
+      "sets": "evidence_sufficiency.py evaluate_evidence_sufficiency — gates_pass true",
+      "ipc": false
+    },
+    "boilerplate": {
+      "decision": "ipc",
+      "sets": "obligation_retrieval.py skipped_reason=boilerplate → evidence_sufficiency bundle.skipped_reason",
+      "ipc": true
+    },
+    "routing_or_skip": {
+      "decision": "ipc",
+      "sets": "evidence_sufficiency.py — ipc_preflight remapped, route_decision=ipc, low_routing_confidence",
+      "ipc": true
+    },
+    "low_relevance_score": {
+      "decision": "ipc",
+      "sets": "evidence_sufficiency.py — max_score < evidence_min_score",
+      "ipc": true
+    },
+    "low_concept_overlap": {
+      "decision": "ipc",
+      "sets": "evidence_sufficiency.py — lexical overlap fail, rerank bypass fail",
+      "ipc": true
+    },
+    "insufficient_evidence": {
+      "decision": "ipc",
+      "sets": "evidence_sufficiency.py — expand exhausted or expand decision failed",
+      "ipc": true
+    }
+  },
+  "bumps": {
+    "ipc3_bucket_v2": "E-BP2 boilerplate override ships",
+    "ipc3_bucket_v3": "E-EV1 semantic overlap ships",
+    "ipc3_bucket_v4": "E-RT2 catalog min_score ships"
+  }
+}

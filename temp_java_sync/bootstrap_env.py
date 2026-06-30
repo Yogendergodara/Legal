@@ -36,7 +36,8 @@ def _should_load_review_env_key(key: str) -> bool:
     return any(key.startswith(prefix) for prefix in _REVIEW_ENV_PREFIXES)
 
 
-def load_env() -> Path:
+def load_env(*, dev_ui: bool = False) -> Path:
+    """Load temp_java_sync/.env. Dev UI uses temp_java only (no review_agent merge)."""
     root = Path(__file__).resolve().parent
     env_path = root / ".env"
     example = root / ".env.example"
@@ -51,8 +52,19 @@ def load_env() -> Path:
         key, _, value = stripped.partition("=")
         key = key.strip()
         value = value.strip()
-        if key and value:
+        if not key:
+            continue
+        if dev_ui:
+            os.environ[key] = value
+        elif value:
             os.environ.setdefault(key, value)
+
+    if dev_ui:
+        # Pydantic Settings also reads review_agent/.env — clear pool keys so LLM_API_KEY wins.
+        if os.environ.get("LLM_KEY_POOL_ENABLED", "").lower() not in ("1", "true", "yes"):
+            os.environ["LLM_API_KEYS"] = ""
+            os.environ["LLM_KEY_POOL_ENABLED"] = "false"
+        return root
 
     review_env = root.parent / "review" / "review_agent" / ".env"
     review_example = root.parent / "review" / "review_agent" / ".env.example"

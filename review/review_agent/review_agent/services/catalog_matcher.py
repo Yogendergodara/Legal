@@ -7,8 +7,10 @@ import re
 from document_core.schemas.policy_catalog import CatalogSearchRequest
 from review_agent.clients.document_client import DocumentMCPClient
 from review_agent.config import ReviewSettings, get_settings
+from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.routing_plan import CatalogMatchResult, ObligationRoutingPlan
 from review_agent.services.catalog_registry import CatalogEntry
+from review_agent.services.ipc3_gates import boilerplate_substantive_override
 from review_agent.services.routing_limits import catalog_search_calls, increment_catalog_search_calls
 
 _TOKEN_RE = re.compile(r"[a-z0-9]{3,}")
@@ -98,18 +100,20 @@ async def match_obligation_to_catalog(
     settings: ReviewSettings | None = None,
     obligation_text: str = "",
     section_title: str = "",
+    obligation: ContractObligation | None = None,
 ) -> CatalogMatchResult:
     cfg = settings or get_settings()
     allowed = allowed_doc_ids or set()
     fallback_enabled = cfg.catalog_match_obligation_fallback_enabled
 
     if plan.routing_source == "skipped_boilerplate":
-        return CatalogMatchResult(
-            obligation_id=plan.obligation_id,
-            routing_source="ipc",
-            confidence=plan.confidence,
-            route_decision="ipc",
-        )
+        if obligation is None or not boilerplate_substantive_override(obligation, plan, cfg):
+            return CatalogMatchResult(
+                obligation_id=plan.obligation_id,
+                routing_source="ipc",
+                confidence=plan.confidence,
+                route_decision="ipc",
+            )
 
     # PR-01 / PR-06 — named policy mentions still run catalog search despite low planner confidence
     if (

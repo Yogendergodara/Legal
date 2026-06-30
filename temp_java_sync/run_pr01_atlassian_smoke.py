@@ -88,6 +88,17 @@ async def main() -> int:
     OUT.parent.mkdir(exist_ok=True)
     OUT.write_text(json.dumps(review, indent=2, ensure_ascii=False), encoding="utf-8")
 
+    from review_agent.services.ipc3_gates import check_obligation_funnel_identity  # noqa: E402
+
+    stats = (review.get("artifact") or {}).get("compliance_stats") or review.get("compliance_stats") or {}
+    funnel_errors = check_obligation_funnel_identity(stats)
+    if funnel_errors:
+        print("\nFUNNEL IDENTITY FAIL:", file=sys.stderr)
+        for err in funnel_errors:
+            print(f"  - {err}", file=sys.stderr)
+    else:
+        print("\nFUNNEL IDENTITY OK", file=sys.stderr)
+
     diagnosis = review.get("engine_diagnosis") or {}
     ipc = diagnosis.get("ipc_summary") or {}
     funnel = (diagnosis.get("obligation_pipeline") or {}).get("funnel") or {}

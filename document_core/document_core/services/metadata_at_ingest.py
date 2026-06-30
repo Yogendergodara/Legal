@@ -138,7 +138,9 @@ def infer_section_categories_keyword(*, title: str, text: str) -> list[str]:
 def _infer_categories(*, title: str, section_texts: list[str]) -> list[str]:
     found: list[str] = []
     seen: set[str] = set()
-    for section_text in section_texts[:3]:
+    # Title-only ingest (document-level) must still infer from section title.
+    bodies = section_texts[:3] if section_texts else [""]
+    for section_text in bodies:
         for cat in infer_section_categories_keyword(title=title, text=section_text):
             if cat not in seen:
                 seen.add(cat)

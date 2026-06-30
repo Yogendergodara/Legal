@@ -439,3 +439,41 @@ async def test_evidence_expand_parallel_preserves_counts(monkeypatch):
     assert stats.get("obligation_evidence_expand_count") == 4
     assert len(expand_calls) == 4
     assert stats.get("obligation_compare_ready_count") == 4
+
+
+def test_sufficiency_semantic_paraphrase_compare(monkeypatch):
+    """E-EV1 — high rerank + zero lexical overlap passes via semantic gate."""
+    ob = _obligation(text="Vendor must report security incidents within eight hours.")
+    plan = ObligationRoutingPlan(
+        obligation_id=ob.obligation_id,
+        confidence=0.85,
+        concepts=["breach", "notification"],
+    )
+    match = CatalogMatchResult(obligation_id=ob.obligation_id, route_decision="compare")
+    bundle = ObligationRetrievalBundle(
+        obligation_id=ob.obligation_id,
+        section_id=ob.section_id,
+        policy_hits=[_hit(score=0.92, title="unrelated policy section xyz")],
+    )
+
+    monkeypatch.setattr(
+        "review_agent.services.evidence_sufficiency.semantic_concept_overlap",
+        lambda **_kwargs: 0.78,
+    )
+
+    result = evaluate_evidence_sufficiency(
+        obligation=ob,
+        plan=plan,
+        match=match,
+        bundle=bundle,
+        settings=ReviewSettings(
+            evidence_min_score=0.35,
+            evidence_min_concept_overlap=0.15,
+            evidence_semantic_overlap_enabled=True,
+            evidence_min_semantic_overlap=0.72,
+            evidence_rerank_bypass_enabled=False,
+        ),
+    )
+    assert result.decision == "compare"
+    assert result.reason == "evidence_sufficient"
+    assert result.concept_overlap_score < 0.15

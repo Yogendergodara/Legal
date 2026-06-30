@@ -196,6 +196,7 @@ async def catalog_match_node(
             settings=settings,
             obligation_text=(ob.text or "") if ob else "",
             section_title=(section.title or "") if section else "",
+            obligation=ob,
         )
         matches[obligation_id] = match
         candidate_counts.append(len(match.candidate_doc_ids))
