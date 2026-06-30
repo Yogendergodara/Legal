@@ -5,6 +5,7 @@
 **Parent:** [PHASE_OB01020304_NON429_IPC_RECOVERY_PLAN.md](./PHASE_OB01020304_NON429_IPC_RECOVERY_PLAN.md) · [PHASE_SR01_MEANING_FIRST_RETRIEVAL_PLAN.md](./PHASE_SR01_MEANING_FIRST_RETRIEVAL_PLAN.md) · [PHASE_R4_R5_IMPLEMENTATION_PLAN.md](./PHASE_R4_R5_IMPLEMENTATION_PLAN.md)  
 **Out of scope:** HTTP 429 / `section_compare_failed` / key pool / quota (Phase B — fix separately)  
 **Status:** **IMPLEMENTED** (PR-04/05/06/07 code + config; PR-02B re-sync manual; PR-04B semantic embed deferred)  
+**Execution:** Operator + measured experiments → [PHASE_IPC3_PRODUCTION_EXECUTION_PLAN.md](./PHASE_IPC3_PRODUCTION_EXECUTION_PLAN.md)  
 **Baseline:** Atlassian `atlassian_review_live.json` (2026-06-29, `parallel_hybrid`, OB-01 live)  
 **Target:** Restore **≥4 NC Atlassian** (match `live_contract_battery_prev.json`) with **obligation_ipc_rate < 0.50** and **section confident compare > 50%** once 429 is controlled  
 

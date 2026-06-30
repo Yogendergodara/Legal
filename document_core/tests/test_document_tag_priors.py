@@ -73,3 +73,39 @@ def test_ai_terms_prior_prefers_ai_usage() -> None:
     assert "ai_usage" in result
     assert "ip" in result
     assert "hr" not in result
+
+
+def test_aup_prior_does_not_append_prefer_on_broad_only() -> None:
+    result = apply_document_priors(
+        ["compliance", "security"],
+        document_title="Atlassian Acceptable Use Policy",
+    )
+    assert result == ["compliance", "security"]
+    assert "access_control" not in result
+
+
+def test_aup_prior_hint_lists_specific_candidates() -> None:
+    hint = document_prior_hint("Atlassian Acceptable Use Policy")
+    assert "access_control" in hint
+    assert "ai_usage" in hint
+    assert "compliance or security only when no specific" in hint
+
+
+def test_assess_aup_broad_only_is_weak() -> None:
+    warnings = assess_policy_tag_quality(
+        document_title="Atlassian Acceptable Use Policy",
+        section_categories=[["compliance", "security"]],
+        tagger="llm",
+        document_union=["compliance", "security"],
+    )
+    assert any("weak_tags" in w for w in warnings)
+
+
+def test_assess_aup_specific_union_not_weak() -> None:
+    warnings = assess_policy_tag_quality(
+        document_title="Atlassian Acceptable Use Policy",
+        section_categories=[["access_control", "ip"]],
+        tagger="llm",
+        document_union=["access_control", "ip", "compliance"],
+    )
+    assert not any("weak_tags" in w for w in warnings)

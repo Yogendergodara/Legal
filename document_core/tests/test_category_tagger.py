@@ -11,7 +11,14 @@ from document_core.config import DocumentCoreSettings, get_settings
 from document_core.parser.text_parser import parse_text_to_tree
 from document_core.schemas.category_tag import BatchSectionCategoryTagResult, SectionCategoryTag
 from document_core.schemas.chunk import DocumentKind, IngestRequest, SectionNode
-from document_core.services.category_tagger import plan_llm_batches, tag_policy_sections
+from document_core.services.category_tagger import (
+    _prompt_template,
+    _sanitize_llm_categories,
+    broad_fallback_count,
+    plan_llm_batches,
+    reset_broad_fallback_count,
+    tag_policy_sections,
+)
 from document_core.services.ingest import ingest_document
 from document_core.services.metadata_at_ingest import infer_section_categories_keyword
 from document_core.store.pgvector_store import PgVectorDocumentStore
@@ -66,6 +73,42 @@ def test_keyword_brand_security_not_cyber_security():
     )
     assert "security" not in cats
     assert "trademark" in cats or "ip" in cats
+
+
+def test_prompt_has_multi_topic_and_aup_rules():
+    _prompt_template.cache_clear()
+    prompt = _prompt_template()
+    assert "Do not stop at the first pattern match" in prompt
+    assert "Acceptable Use Policy" in prompt
+    assert "access_control" in prompt
+
+
+def test_sanitize_broad_only_fallback_to_keyword_specific():
+    reset_broad_fallback_count()
+    node = SectionNode(
+        section_id="prohibited-1",
+        section_path="prohibited-1",
+        title="Prohibited Activities",
+        level=1,
+        text="Users must not distribute malware or file false DMCA claims.",
+    )
+    cats = _sanitize_llm_categories(["compliance", "security"], node=node)
+    assert "access_control" in cats or "ip" in cats
+    assert broad_fallback_count() == 1
+
+
+def test_sanitize_broad_only_keeps_broad_when_keyword_also_broad():
+    reset_broad_fallback_count()
+    node = SectionNode(
+        section_id="intro",
+        section_path="intro",
+        title="Introduction",
+        level=1,
+        text="This policy explains our services.",
+    )
+    cats = _sanitize_llm_categories(["compliance"], node=node)
+    assert cats == ["compliance"]
+    assert broad_fallback_count() == 0
 
 
 def test_cap_via_tagger_keeps_up_to_five_specific_tags():

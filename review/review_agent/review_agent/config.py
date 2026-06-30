@@ -156,6 +156,10 @@ class ReviewSettings(BaseSettings):
     mcp_search_cache_enabled: bool = True
     mcp_http_max_keepalive_connections: int = 40
     mcp_http_max_connections: int = 100
+    # MCP global in-flight cap (mirrors llm_global_concurrency; process-wide singleton)
+    mcp_global_concurrency: int = 6
+    mcp_semaphore_acquire_timeout_seconds: float = 60.0
+    mcp_semaphore_acquire_warn_seconds: float = 30.0
 
     playbook_enrich_compare: bool = True
     playbook_load_registry: bool = False
@@ -358,6 +362,9 @@ def build_runtime_settings_snapshot(
         "obligation_retrieval_section_hit_reuse": resolved.obligation_retrieval_section_hit_reuse,
         "mcp_search_cache_enabled": resolved.mcp_search_cache_enabled,
         "mcp_http_max_connections": resolved.mcp_http_max_connections,
+        "mcp_global_concurrency": resolved.mcp_global_concurrency,
+        "mcp_semaphore_acquire_timeout_seconds": resolved.mcp_semaphore_acquire_timeout_seconds,
+        "mcp_semaphore_acquire_warn_seconds": resolved.mcp_semaphore_acquire_warn_seconds,
         "section_compare_batch_size": resolved.section_compare_batch_size,
         "compare_token_budget_mode": resolved.compare_token_budget_mode,
         "compare_token_pack_mode": resolved.compare_token_pack_mode,

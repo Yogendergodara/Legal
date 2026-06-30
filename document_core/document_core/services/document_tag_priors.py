@@ -12,6 +12,7 @@ class DocumentTagPrior:
     title_keys: tuple[str, ...]
     prefer: tuple[str, ...]
     suppress: frozenset[str]
+    append_prefer: bool = True
 
 
 _DOCUMENT_PRIORS: tuple[DocumentTagPrior, ...] = (
@@ -57,8 +58,9 @@ _DOCUMENT_PRIORS: tuple[DocumentTagPrior, ...] = (
     ),
     DocumentTagPrior(
         ("acceptable use", "aup"),
-        ("compliance", "security"),
+        ("access_control",),
         frozenset({"sla", "payment"}),
+        append_prefer=False,
     ),
     DocumentTagPrior(
         ("ai terms", "artificial intelligence"),
@@ -82,9 +84,10 @@ def apply_document_priors(categories: list[str], *, document_title: str) -> list
     if prior is None:
         return norm
     kept = [cat for cat in norm if cat not in prior.suppress]
-    for pref in prior.prefer:
-        if pref not in kept:
-            kept.append(pref)
+    if prior.append_prefer:
+        for pref in prior.prefer:
+            if pref not in kept:
+                kept.append(pref)
     return kept
 
 
@@ -94,10 +97,17 @@ def document_prior_hint(document_title: str) -> str:
         return ""
     prefer = ", ".join(prior.prefer)
     suppress = ", ".join(sorted(prior.suppress))
-    return (
+    base = (
         f"Document family hint: prefer {prefer}; "
         f"do NOT use {suppress} unless the section explicitly requires them."
     )
+    if any(key in (document_title or "").lower() for key in ("acceptable use", "aup")):
+        return (
+            f"{base} For Acceptable Use sections, tag specific topics: "
+            "access_control, incident_reporting, ip, trademark, ai_usage as applicable; "
+            "use compliance or security only when no specific tag fits."
+        )
+    return base
 
 
 def assess_policy_tag_quality(

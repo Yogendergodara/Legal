@@ -26,10 +26,16 @@ _PROMPT_PATH = Path(__file__).resolve().parent.parent / "prompts" / "policy_sect
 _SECTION_LINE_OVERHEAD = 96
 _ALLOWED_TAGS = STANDARD_POLICY_CATEGORIES - {"general"}
 
+_broad_fallback_count = 0
 
-@lru_cache(maxsize=1)
-def _prompt_template() -> str:
-    return _PROMPT_PATH.read_text(encoding="utf-8")
+
+def reset_broad_fallback_count() -> None:
+    global _broad_fallback_count  # noqa: PLW0603
+    _broad_fallback_count = 0
+
+
+def broad_fallback_count() -> int:
+    return _broad_fallback_count
 
 
 def _sanitize_llm_categories(
@@ -38,6 +44,7 @@ def _sanitize_llm_categories(
     node: SectionNode,
 ) -> list[str]:
     """Drop hallucinated labels; keyword-fill when LLM returns only broad/empty tags."""
+    global _broad_fallback_count  # noqa: PLW0603
     norm = normalize_categories(categories)
     valid = [cat for cat in norm if cat in _ALLOWED_TAGS]
     specific = [cat for cat in valid if cat not in BROAD_POLICY_CATEGORIES]
@@ -45,8 +52,28 @@ def _sanitize_llm_categories(
         broad = [cat for cat in valid if cat in BROAD_POLICY_CATEGORIES]
         return specific + broad
     if valid:
+        keyword = infer_section_categories_keyword(title=node.title, text=node.text)
+        keyword_specific = [
+            cat for cat in keyword if cat not in BROAD_POLICY_CATEGORIES and cat != "general"
+        ]
+        if keyword_specific:
+            _broad_fallback_count += 1
+            logger.warning(
+                "category tagger: broad_only_fallback section_id=%s title=%r llm=%s keyword=%s",
+                node.section_id,
+                node.title,
+                valid,
+                keyword,
+            )
+            broad_from_llm = [cat for cat in valid if cat in BROAD_POLICY_CATEGORIES]
+            return keyword_specific + broad_from_llm
         return valid
     return infer_section_categories_keyword(title=node.title, text=node.text)
+
+
+@lru_cache(maxsize=1)
+def _prompt_template() -> str:
+    return _PROMPT_PATH.read_text(encoding="utf-8")
 
 
 def _iter_sections(nodes: list[SectionNode]):
@@ -307,8 +334,14 @@ async def tag_policy_sections(
 
     if use_llm and mode != "keyword":
         try:
+            reset_broad_fallback_count()
             await _tag_llm_batches(nodes, document_title=document_title, settings=cfg)
-            return tree, {"auto_tagged": True, "tagger": "llm"}
+            extra: dict[str, object] = {
+                "auto_tagged": True,
+                "tagger": "llm",
+                "tagger_broad_fallback_count": broad_fallback_count(),
+            }
+            return tree, extra
         except Exception as exc:
             logger.warning("category tagger LLM failed, using keyword fallback: %s", exc)
 

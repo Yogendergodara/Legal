@@ -290,6 +290,9 @@ async def report_node(state: ReviewState, client: DocumentMCPClient) -> dict[str
     stats["breaker_open_events"] = breaker_open_events()
     stats["breaker_open_events_llm"] = breaker_open_events_llm()
     stats["breaker_open_events_mcp"] = breaker_open_events_mcp()
+    from review_agent.resilience.mcp_limiter import get_mcp_limiter_stats
+
+    stats.update(get_mcp_limiter_stats())
     stats["policy_conflict_count"] = sum(
         1 for f in findings if f.status == ComplianceStatus.POLICY_CONFLICT
     )

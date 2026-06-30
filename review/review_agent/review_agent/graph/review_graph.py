@@ -215,6 +215,9 @@ async def run_review(
     from review_agent.resilience.circuit_breaker import reset_breaker_open_events
 
     reset_breaker_open_events()
+    from review_agent.resilience.mcp_limiter import reset_mcp_limiter_stats
+
+    reset_mcp_limiter_stats()
     from review_agent.resilience.failure_policy import (
         enrich_compliance_stats_with_posture,
         reset_review_llm_counters,

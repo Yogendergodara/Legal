@@ -96,3 +96,6 @@ def review_settings_defaults(monkeypatch: pytest.MonkeyPatch):
 
     get_settings.cache_clear()
     llm_gateway.reset_llm_limiter()
+    from review_agent.resilience.mcp_limiter import reset_mcp_limiter
+
+    reset_mcp_limiter()

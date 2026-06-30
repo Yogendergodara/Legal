@@ -14,6 +14,7 @@ import httpx
 from review_agent.errors import FatalPipelineError, MCPUnreachableError, RecoverableError
 from review_agent.observability.metrics import record_mcp_request
 from review_agent.resilience.circuit_breaker import get_mcp_breaker
+from review_agent.resilience.mcp_limiter import mcp_concurrency_slot
 
 logger = logging.getLogger(__name__)
 
@@ -163,47 +164,48 @@ class DocumentMCPClient:
         resolved_timeout = timeout if timeout is not None else self._timeout_for(path)
         last_error: Exception | None = None
 
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                response = await self._client.request(
-                    method,
-                    url,
-                    json=json,
-                    timeout=resolved_timeout,
-                )
-                if allow_404 and response.status_code == 404:
+        async with mcp_concurrency_slot(method=method, path=path):
+            for attempt in range(1, self.max_retries + 1):
+                try:
+                    response = await self._client.request(
+                        method,
+                        url,
+                        json=json,
+                        timeout=resolved_timeout,
+                    )
+                    if allow_404 and response.status_code == 404:
+                        breaker.record_success()
+                        return response
+                    if raise_for_status:
+                        response.raise_for_status()
                     breaker.record_success()
+                    record_mcp_request(path, str(response.status_code))
                     return response
-                if raise_for_status:
-                    response.raise_for_status()
-                breaker.record_success()
-                record_mcp_request(path, str(response.status_code))
-                return response
-            except httpx.HTTPStatusError as exc:
-                if allow_404 and exc.response.status_code == 404:
-                    breaker.record_success()
-                    return exc.response
-                status = exc.response.status_code
-                if 400 <= status < 500:
-                    record_mcp_request(path, str(status))
-                    raise FatalPipelineError(
-                        f"document-mcp {method} {path} returned {status}"
-                    ) from exc
-                # 5xx — record failure, may retry
-                breaker.record_failure()
-                last_error = exc
-            except (httpx.ConnectError, httpx.ReadTimeout) as exc:
-                breaker.record_failure()
-                last_error = exc
-                if attempt < self.max_retries:
-                    await self._wait_healthy()
-                    continue
-            except Exception as exc:  # noqa: BLE001
-                breaker.record_failure()
-                last_error = exc
+                except httpx.HTTPStatusError as exc:
+                    if allow_404 and exc.response.status_code == 404:
+                        breaker.record_success()
+                        return exc.response
+                    status = exc.response.status_code
+                    if 400 <= status < 500:
+                        record_mcp_request(path, str(status))
+                        raise FatalPipelineError(
+                            f"document-mcp {method} {path} returned {status}"
+                        ) from exc
+                    # 5xx — record failure, may retry
+                    breaker.record_failure()
+                    last_error = exc
+                except (httpx.ConnectError, httpx.ReadTimeout) as exc:
+                    breaker.record_failure()
+                    last_error = exc
+                    if attempt < self.max_retries:
+                        await self._wait_healthy()
+                        continue
+                except Exception as exc:  # noqa: BLE001
+                    breaker.record_failure()
+                    last_error = exc
 
-            if attempt < self.max_retries:
-                await asyncio.sleep(min(0.5 * attempt, 2.0))
+                if attempt < self.max_retries:
+                    await asyncio.sleep(min(0.5 * attempt, 2.0))
 
         if isinstance(last_error, (httpx.ConnectError, httpx.ReadTimeout)):
             record_mcp_request(path, "error")

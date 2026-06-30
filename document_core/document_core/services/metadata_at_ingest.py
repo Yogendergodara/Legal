@@ -16,9 +16,13 @@ _CATEGORY_REGEX: tuple[tuple[str, str], ...] = (
     (r"\bsla\b|service level agreement", "sla"),
     (
         r"\binformation security\b|\bcybersecurity\b|\bsecurity control\b|"
-        r"\bdata security\b|\baccess control\b",
+        r"\bdata security\b",
         "security",
     ),
+    (r"\bunauthorized access\b|\bcryptomining\b|\bcrypto[\s-]?mining\b", "access_control"),
+    (r"\bmalware\b|\bvirus\b|\bhacking\b|\bprohibited activ", "access_control"),
+    (r"\bdmca\b|copyright infringement|circumvent.{0,40}copyright", "ip"),
+    (r"\bsecurity incident\b|\bincident report", "incident_reporting"),
     (r"secure delet|secure destruction|irreversibly delet", "secure_deletion"),
     (r"legal hold|litigation hold", "legal_hold"),
     (r"data subject rights|data principal|\bgdpr\b|\bdpdpa\b", "data_subject_rights"),
@@ -58,6 +62,16 @@ _CATEGORY_PHRASES: tuple[tuple[str, str], ...] = (
     ("conduct", "compliance"),
     ("logo guidelines", "trademark"),
     ("logo usage", "trademark"),
+    ("acceptable use", "access_control"),
+    ("prohibited use", "access_control"),
+    ("misuse of", "access_control"),
+    ("dmca", "ip"),
+    ("malware", "access_control"),
+    ("unauthorized access", "access_control"),
+    ("harassment", "access_control"),
+    ("spam", "access_control"),
+    ("machine learning", "ai_usage"),
+    ("generative ai", "ai_usage"),
 )
 
 
