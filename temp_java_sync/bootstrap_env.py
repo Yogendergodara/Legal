@@ -31,7 +31,7 @@ _REVIEW_ENV_PREFIXES = (
 
 
 def _should_load_review_env_key(key: str) -> bool:
-    if key in {"MISTRAL_API_KEY"}:
+    if key in {"MISTRAL_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY"}:
         return True
     return any(key.startswith(prefix) for prefix in _REVIEW_ENV_PREFIXES)
 
@@ -59,11 +59,19 @@ def load_env(*, dev_ui: bool = False) -> Path:
         elif value:
             os.environ.setdefault(key, value)
 
+    # Smoke/battery: temp_java LLM_API_KEY wins — do not merge placeholder key pool from review_agent.
+    if os.environ.get("LLM_API_KEY") and "PASTE_KEY" not in os.environ.get("LLM_API_KEY", ""):
+        if os.environ.get("LLM_KEY_POOL_ENABLED", "").lower() not in ("1", "true", "yes"):
+            os.environ["LLM_API_KEYS"] = ""
+            os.environ["LLM_KEY_POOL_ENABLED"] = "false"
+
     if dev_ui:
         # Pydantic Settings also reads review_agent/.env — clear pool keys so LLM_API_KEY wins.
         if os.environ.get("LLM_KEY_POOL_ENABLED", "").lower() not in ("1", "true", "yes"):
             os.environ["LLM_API_KEYS"] = ""
             os.environ["LLM_KEY_POOL_ENABLED"] = "false"
+        _sync_google_api_key_env()
+        _sync_groq_api_key_env()
         return root
 
     review_env = root.parent / "review" / "review_agent" / ".env"
@@ -80,9 +88,39 @@ def load_env(*, dev_ui: bool = False) -> Path:
             value = value.strip()
             if not key or not _should_load_review_env_key(key) or not value:
                 continue
+            if key == "LLM_API_KEYS" and "PASTE_KEY" in value:
+                continue
             if not os.environ.get(key):
                 os.environ[key] = value
+    _sync_google_api_key_env()
+    _sync_groq_api_key_env()
     return root
+
+
+def _sync_groq_api_key_env() -> None:
+    """Groq OpenAI-compatible endpoint uses LLM_API_KEY or GROQ_API_KEY."""
+    base = (os.environ.get("LLM_BASE_URL") or "").strip().lower()
+    if "groq.com" not in base:
+        return
+    groq = (os.environ.get("GROQ_API_KEY") or "").strip()
+    llm = (os.environ.get("LLM_API_KEY") or "").strip()
+    if groq and not llm:
+        os.environ["LLM_API_KEY"] = groq
+    elif llm and not groq:
+        os.environ["GROQ_API_KEY"] = llm
+
+
+def _sync_google_api_key_env() -> None:
+    """LangChain google_genai reads GOOGLE_API_KEY; keep LLM_API_KEY in sync."""
+    provider = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
+    if provider not in {"google_genai", "google"}:
+        return
+    google = (os.environ.get("GOOGLE_API_KEY") or "").strip()
+    llm = (os.environ.get("LLM_API_KEY") or "").strip()
+    if google and not llm:
+        os.environ["LLM_API_KEY"] = google
+    elif llm and not google:
+        os.environ["GOOGLE_API_KEY"] = llm
 
 
 def apply_golden_tenant_rollout_defaults() -> None:
@@ -94,8 +132,11 @@ def apply_golden_tenant_rollout_defaults() -> None:
 
 
 def apply_golden_llm_profile_defaults() -> None:
-    """RC-12 — battery/golden runs use conservative Mistral pacing unless opted out."""
+    """RC-12 — battery/golden runs use conservative pacing unless opted out."""
     if os.environ.get("GOLDEN_LLM_PROFILE_OPT_OUT", "").strip().lower() in ("1", "true", "yes"):
+        return
+    provider = (os.environ.get("LLM_PROVIDER") or "").strip().lower()
+    if provider in {"google_genai", "google"}:
         return
     force = os.environ.get("GOLDEN_LLM_PROFILE_FORCE", "").strip().lower() in ("1", "true", "yes")
     if force:

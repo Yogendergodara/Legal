@@ -15,6 +15,7 @@ from review_agent.services.compare_prompt_loader import (
     obligation_compare_prompt_path,
 )
 from review_agent.services.ipc3_gates import (
+    boilerplate_obligation_routable,
     boilerplate_substantive_override,
     check_obligation_funnel_identity,
 )
@@ -147,6 +148,46 @@ async def test_retrieval_boilerplate_override_skips_bundle():
         settings=cfg,
     )
     assert bundle.skipped_reason == "boilerplate"
+
+
+def test_boilerplate_obligation_routable_substantive_type():
+    ob = _ob(obligation_type="privacy", is_boilerplate=True)
+    cfg = ReviewSettings(ipc3_boilerplate_substantive_override_enabled=True)
+    assert boilerplate_obligation_routable(ob, cfg) is True
+
+
+def test_boilerplate_obligation_routable_general_stays_skipped():
+    ob = _ob(obligation_type="general", is_boilerplate=True)
+    cfg = ReviewSettings(ipc3_boilerplate_substantive_override_enabled=True)
+    assert boilerplate_obligation_routable(ob, cfg) is False
+
+
+@pytest.mark.asyncio
+async def test_catalog_matcher_low_confidence_uses_obligation_explicit_mentions():
+    ob = _ob(explicit_policy_mentions=["atlassian-dpa"])
+    plan = ObligationRoutingPlan(
+        obligation_id=ob.obligation_id,
+        routing_source="planner_fallback",
+        confidence=0.4,
+        intent="data processing",
+        explicit_policy_mentions=[],
+    )
+
+    class _Client:
+        async def search_policy_catalog(self, _req):
+            return []
+
+    cfg = ReviewSettings()
+    match = await match_obligation_to_catalog(
+        plan,
+        client=_Client(),
+        tenant_id="t1",
+        catalog_entries=[],
+        allowed_doc_ids=set(),
+        settings=cfg,
+        obligation=ob,
+    )
+    assert match.queries_used
 
 
 def test_compare_prompt_loader_defaults_v1():

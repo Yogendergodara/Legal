@@ -130,6 +130,103 @@ def _candidate_doc_ids(
     return list(bundle.candidate_doc_ids or match.candidate_doc_ids or [])
 
 
+def _top_catalog_score(match: CatalogMatchResult) -> float:
+    scores = match.candidate_scores or {}
+    if not scores:
+        return 0.0
+    return max(float(v) for v in scores.values())
+
+
+def _catalog_strong_defer_passes(
+    *,
+    match: CatalogMatchResult,
+    hit_count: int,
+    max_score: float,
+    settings: ReviewSettings,
+) -> bool:
+    """PR-05B — fenced catalog match + retrieval hits defer overlap veto to compare LLM."""
+    if not settings.evidence_catalog_strong_defer_enabled:
+        return False
+    if match.route_decision not in ("compare", "expand"):
+        return False
+    if not match.candidate_doc_ids:
+        return False
+    if _top_catalog_score(match) < settings.catalog_match_min_score:
+        return False
+    if hit_count < settings.evidence_min_hits:
+        return False
+    return max_score >= settings.evidence_min_score
+
+
+def _low_routing_rerank_defer_passes(
+    *,
+    obligation: ContractObligation,
+    plan: ObligationRoutingPlan,
+    match: CatalogMatchResult,
+    hit_count: int,
+    max_score: float,
+    concept_overlap: float,
+    settings: ReviewSettings,
+    semantic_overlap: float | None,
+) -> bool:
+    """IPC3 — strong retrieval defers low planner confidence to compare LLM."""
+    if not settings.evidence_low_routing_rerank_defer_enabled:
+        return False
+    if plan.confidence >= settings.routing_ipc_max_confidence:
+        return False
+    candidates = list(match.candidate_doc_ids or [])
+    if not candidates or match.route_decision not in ("compare", "expand"):
+        return False
+    if hit_count < settings.evidence_min_hits or max_score < settings.evidence_min_score:
+        return False
+    if _lexical_overlap_passes(concept_overlap, settings):
+        return True
+    if _semantic_overlap_passes(semantic_overlap, settings):
+        return True
+    if _catalog_strong_defer_passes(
+        match=match,
+        hit_count=hit_count,
+        max_score=max_score,
+        settings=settings,
+    ):
+        return True
+    return _rerank_bypass_passes(
+        max_score=max_score,
+        concept_overlap=concept_overlap,
+        routing_confidence=plan.confidence,
+        settings=settings,
+    )
+
+
+def _should_defer_to_compare(
+    *,
+    match: CatalogMatchResult,
+    hit_count: int,
+    max_score: float,
+    concept_overlap: float,
+    plan: ObligationRoutingPlan,
+    settings: ReviewSettings,
+    semantic_overlap: float | None,
+) -> bool:
+    if _lexical_overlap_passes(concept_overlap, settings):
+        return True
+    if _semantic_overlap_passes(semantic_overlap, settings):
+        return True
+    if _catalog_strong_defer_passes(
+        match=match,
+        hit_count=hit_count,
+        max_score=max_score,
+        settings=settings,
+    ):
+        return True
+    return _rerank_bypass_passes(
+        max_score=max_score,
+        concept_overlap=concept_overlap,
+        routing_confidence=plan.confidence,
+        settings=settings,
+    )
+
+
 def evaluate_evidence_sufficiency(
     *,
     obligation: ContractObligation,
@@ -190,11 +287,30 @@ def evaluate_evidence_sufficiency(
         settings=cfg,
         semantic_overlap=semantic_overlap,
     )
+    if not gates_pass and _catalog_strong_defer_passes(
+        match=match,
+        hit_count=hit_count,
+        max_score=max_score,
+        settings=cfg,
+    ):
+        gates_pass = True
 
     if plan.confidence < cfg.routing_ipc_max_confidence:
         candidates = _candidate_doc_ids(match, bundle)
         if gates_pass:
             pass
+        elif _should_defer_to_compare(
+            match=match,
+            hit_count=hit_count,
+            max_score=max_score,
+            concept_overlap=overlap,
+            plan=plan,
+            settings=cfg,
+            semantic_overlap=semantic_overlap,
+        ):
+            return base.model_copy(
+                update={"decision": "compare", "reason": "evidence_sufficient"},
+            )
         elif (
             candidates
             and match.route_decision in ("expand", "compare")
@@ -220,15 +336,14 @@ def evaluate_evidence_sufficiency(
     if hit_count and max_score < cfg.evidence_min_score:
         reason = "low_relevance_score"
     elif hit_count and not _lexical_overlap_passes(overlap, cfg):
-        if _semantic_overlap_passes(semantic_overlap, cfg):
-            return base.model_copy(
-                update={"decision": "compare", "reason": "evidence_sufficient"},
-            )
-        if _rerank_bypass_passes(
+        if _should_defer_to_compare(
+            match=match,
+            hit_count=hit_count,
             max_score=max_score,
             concept_overlap=overlap,
-            routing_confidence=plan.confidence,
+            plan=plan,
             settings=cfg,
+            semantic_overlap=semantic_overlap,
         ):
             return base.model_copy(
                 update={"decision": "compare", "reason": "evidence_sufficient"},

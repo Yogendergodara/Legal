@@ -16,24 +16,30 @@ setup_pythonpath()
 
 from atlassian_ipc2 import (  # noqa: E402
     ATLASSIAN_FIXTURE,
-    SYNC_OUT,
     missing_atlassian_refs,
     validate_policy_sync,
 )
+from atlassian_test_tenant import resolve_atlassian_test_tenant, sync_output_path  # noqa: E402
 from e2e_harness import policy_fixture_to_sync  # noqa: E402
 from review_agent.clients.document_client import DocumentMCPClient  # noqa: E402
-from sync_service import sync_policies_only  # noqa: E402
+from sync_service import OUTPUTS, sync_policies_only  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 
 
 async def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="E-IDX Atlassian policy sync")
+    parser.add_argument("--tenant", default=None, help="Isolated tenant (default: atlassian-test-run)")
+    args = parser.parse_args()
+
     if not ATLASSIAN_FIXTURE.is_file():
         print(f"Missing fixture: {ATLASSIAN_FIXTURE}", file=sys.stderr)
         return 1
 
     data = json.loads(ATLASSIAN_FIXTURE.read_text(encoding="utf-8"))
-    tenant = data.get("tenant_id", "e2e-demo")
+    tenant = resolve_atlassian_test_tenant(cli_tenant=args.tenant)
     base_url = os.environ.get("DOCUMENT_SERVER_URL", "http://localhost:8003")
     client = DocumentMCPClient(base_url)
 
@@ -45,9 +51,10 @@ async def main() -> int:
         replace_policies=True,
     )
 
-    SYNC_OUT.parent.mkdir(exist_ok=True)
-    SYNC_OUT.write_text(json.dumps(sync_result, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Wrote {SYNC_OUT}")
+    sync_path = OUTPUTS / sync_output_path(tenant)
+    sync_path.parent.mkdir(exist_ok=True)
+    sync_path.write_text(json.dumps(sync_result, indent=2, ensure_ascii=False), encoding="utf-8")
+    print(f"Wrote {sync_path}")
 
     errors = validate_policy_sync(sync_result)
     missing = missing_atlassian_refs(tenant)

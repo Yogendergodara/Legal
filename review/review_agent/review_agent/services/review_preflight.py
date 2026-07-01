@@ -29,6 +29,8 @@ def check_llm_credentials() -> None:
     api_key = (
         _env("REVIEW_LLM_API_KEY")
         or _env("LLM_API_KEY")
+        or _env("GROQ_API_KEY")
+        or _env("GOOGLE_API_KEY")
         or _env("OPENAI_API_KEY")
         or _env("MISTRAL_API_KEY")
     )

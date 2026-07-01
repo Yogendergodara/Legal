@@ -205,6 +205,54 @@ async def test_catalog_marginal_score_routes_to_compare():
 
 
 @pytest.mark.asyncio
+async def test_catalog_low_confidence_still_searches_when_enabled():
+    """PR-05B — planner confidence 0.5 still runs catalog search (evidence gates decide IPC)."""
+    doc_id = str(uuid4())
+    client = AsyncMock()
+    client.search_policy_catalog.return_value = [
+        CatalogSearchHit(document_id=doc_id, title="Privacy Policy", score=0.9),
+    ]
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        search_queries=["privacy data collection"],
+        confidence=0.5,
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[_entry(doc_id, "Privacy Policy")],
+        allowed_doc_ids={doc_id},
+        settings=ReviewSettings(catalog_match_search_on_low_confidence=True),
+    )
+    client.search_policy_catalog.assert_called()
+    assert doc_id in match.candidate_doc_ids
+    assert match.route_decision == "expand"
+
+
+@pytest.mark.asyncio
+async def test_catalog_low_confidence_ipc_when_search_disabled():
+    client = AsyncMock()
+    plan = ObligationRoutingPlan(
+        obligation_id="4-o0",
+        search_queries=["privacy"],
+        confidence=0.5,
+        routing_source="llm",
+    )
+    match = await match_obligation_to_catalog(
+        plan,
+        client=client,
+        tenant_id="tenant",
+        catalog_entries=[],
+        allowed_doc_ids=set(),
+        settings=ReviewSettings(catalog_match_search_on_low_confidence=False),
+    )
+    client.search_policy_catalog.assert_not_called()
+    assert match.route_decision == "ipc"
+
+
+@pytest.mark.asyncio
 async def test_catalog_low_confidence_with_explicit_mentions_searches():
     """PR-06 — explicit policy mentions bypass planner IPC preflight."""
     doc_id = str(uuid4())
@@ -229,7 +277,7 @@ async def test_catalog_low_confidence_with_explicit_mentions_searches():
     )
     client.search_policy_catalog.assert_called()
     assert doc_id in match.candidate_doc_ids
-    assert match.route_decision == "compare"
+    assert match.route_decision == "expand"
 
 
 @pytest.mark.asyncio

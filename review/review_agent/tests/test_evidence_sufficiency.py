@@ -192,6 +192,46 @@ def test_ipc_route_with_candidates_and_hits_compares():
     assert result.reason == "evidence_sufficient"
 
 
+def test_catalog_strong_defer_low_planner_confidence():
+    """IPC4 — catalog 0.7+ + hits defer compare when planner confidence is 0."""
+    ob = _obligation(text="Scope covers Products Support and Advisory Services.")
+    plan = ObligationRoutingPlan(
+        obligation_id=ob.obligation_id,
+        confidence=0.0,
+        concepts=["scope"],
+        routing_source="llm",
+    )
+    match = CatalogMatchResult(
+        obligation_id=ob.obligation_id,
+        route_decision="expand",
+        candidate_doc_ids=["doc-1", "doc-2"],
+        candidate_scores={"doc-1": 0.73, "doc-2": 0.45},
+    )
+    bundle = ObligationRetrievalBundle(
+        obligation_id=ob.obligation_id,
+        section_id=ob.section_id,
+        policy_hits=[_hit(score=0.88, title="unrelated section xyz")],
+        candidate_doc_ids=["doc-1"],
+    )
+    result = evaluate_evidence_sufficiency(
+        obligation=ob,
+        plan=plan,
+        match=match,
+        bundle=bundle,
+        settings=ReviewSettings(
+            evidence_min_score=0.35,
+            evidence_min_concept_overlap=0.15,
+            evidence_catalog_strong_defer_enabled=True,
+            evidence_rerank_bypass_enabled=False,
+            evidence_expand_max_rounds=0,
+        ),
+        expand_round=2,
+    )
+    assert result.decision == "compare"
+    assert result.reason == "evidence_sufficient"
+    assert result.concept_overlap_score < 0.15
+
+
 def test_hits_pass_gates_concept_overlap_independent_of_score():
     settings = ReviewSettings(
         evidence_min_hits=1,
@@ -343,6 +383,9 @@ def test_concept_overlap_ob04_default_threshold_allows_marginal_match():
     )
     assert result.decision == "compare"
     assert result.reason == "evidence_sufficient"
+
+
+def test_tally_skip_reasons():
     results = {
         "a": EvidenceSufficiencyResult(obligation_id="a", decision="ipc", reason="routing_or_skip"),
         "b": EvidenceSufficiencyResult(obligation_id="b", decision="compare", reason="evidence_sufficient"),
@@ -476,4 +519,38 @@ def test_sufficiency_semantic_paraphrase_compare(monkeypatch):
     )
     assert result.decision == "compare"
     assert result.reason == "evidence_sufficient"
-    assert result.concept_overlap_score < 0.15
+
+
+def test_low_routing_rerank_defer_compare():
+    ob = _obligation(text="Notify within 8 hours of security incident.")
+    plan = ObligationRoutingPlan(
+        obligation_id=ob.obligation_id,
+        confidence=0.45,
+        concepts=["incident"],
+    )
+    match = CatalogMatchResult(
+        obligation_id=ob.obligation_id,
+        route_decision="compare",
+        candidate_doc_ids=["doc-1"],
+    )
+    bundle = ObligationRetrievalBundle(
+        obligation_id=ob.obligation_id,
+        section_id=ob.section_id,
+        policy_hits=[_hit(score=0.88, title="incident notification timeline")],
+        candidate_doc_ids=["doc-1"],
+    )
+    result = evaluate_evidence_sufficiency(
+        obligation=ob,
+        plan=plan,
+        match=match,
+        bundle=bundle,
+        settings=ReviewSettings(
+            evidence_min_score=0.35,
+            evidence_min_concept_overlap=0.15,
+            evidence_rerank_bypass_enabled=True,
+            evidence_rerank_bypass_min_confidence=0.4,
+            evidence_low_routing_rerank_defer_enabled=True,
+        ),
+    )
+    assert result.decision == "compare"
+    assert result.reason == "evidence_sufficient"

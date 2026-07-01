@@ -4,7 +4,7 @@
 **ID:** `DR-PHASE-IPC4`  
 **Parent:** [PHASE_IPC3_PRODUCTION_EXECUTION_PLAN.md](./PHASE_IPC3_PRODUCTION_EXECUTION_PLAN.md) · [PHASE_OB02B_PR02B_POLICY_TAGGER_QUALITY_PLAN.md](./PHASE_OB02B_PR02B_POLICY_TAGGER_QUALITY_PLAN.md)  
 **Baseline band:** `temp_java_sync/outputs/ipc3_variance_summary.json` (median IPC 0.887, `routing_or_skip` 19, `QUEUED` 27)  
-**Status:** **IN PROGRESS** — Batch A+B+C code shipped 2026-06-25
+**Status:** **SHIPPED** — surgical IPC gates (E-BP2/E-RT2/low-routing defer) 2026-06-25
 
 ---
 

@@ -10,6 +10,7 @@ from review_agent.config import ReviewSettings, get_settings
 from review_agent.schemas.obligation import ContractObligation
 from review_agent.schemas.routing_plan import CatalogMatchResult, ObligationRoutingPlan
 from review_agent.services.catalog_registry import CatalogEntry
+from review_agent.services.catalog_match_recovery import taxonomy_recovery_candidates
 from review_agent.services.ipc3_gates import boilerplate_substantive_override
 from review_agent.services.routing_limits import catalog_search_calls, increment_catalog_search_calls
 
@@ -90,6 +91,15 @@ def _title_overlap_candidates(
     return scored
 
 
+def _effective_explicit_mentions(
+    plan: ObligationRoutingPlan,
+    obligation: ContractObligation | None,
+) -> list[str]:
+    if obligation and list(obligation.explicit_policy_mentions or []):
+        return list(obligation.explicit_policy_mentions)
+    return list(plan.explicit_policy_mentions or [])
+
+
 async def match_obligation_to_catalog(
     plan: ObligationRoutingPlan,
     *,
@@ -116,10 +126,9 @@ async def match_obligation_to_catalog(
             )
 
     # PR-01 / PR-06 — named policy mentions still run catalog search despite low planner confidence
-    if (
-        plan.confidence < cfg.routing_ipc_max_confidence
-        and not plan.explicit_policy_mentions
-    ):
+    explicit_mentions = _effective_explicit_mentions(plan, obligation)
+    low_confidence = plan.confidence < cfg.routing_ipc_max_confidence and not explicit_mentions
+    if low_confidence and not cfg.catalog_match_search_on_low_confidence:
         return CatalogMatchResult(
             obligation_id=plan.obligation_id,
             routing_source="ipc",
@@ -187,12 +196,31 @@ async def match_obligation_to_catalog(
         ).items():
             fenced[doc_id] = score
 
+    if not fenced and cfg.catalog_match_taxonomy_recovery_enabled and catalog_entries:
+        for doc_id, score in taxonomy_recovery_candidates(
+            plan=plan,
+            obligation_text=obligation_text,
+            section_title=section_title,
+            catalog_entries=catalog_entries,
+            allowed=allowed,
+            min_score=cfg.catalog_match_taxonomy_recovery_min_score,
+            max_candidates=cfg.catalog_match_taxonomy_recovery_max_candidates,
+            broad_min_score=cfg.catalog_match_broad_fence_min_score,
+            planner_confidence=plan.confidence,
+            broad_fence_min_confidence=cfg.catalog_match_broad_fence_min_confidence,
+        ).items():
+            fenced[doc_id] = max(fenced.get(doc_id, 0.0), score)
+
     sorted_ids = sorted(fenced.keys(), key=lambda doc_id: fenced[doc_id], reverse=True)
     capped = sorted_ids[: cfg.catalog_match_max_candidates]
     candidate_scores = {doc_id: fenced[doc_id] for doc_id in capped}
     top_score = max(candidate_scores.values()) if candidate_scores else 0.0
     min_score = cfg.catalog_match_min_score
-    marginal_floor = min_score * 0.85
+    marginal_floor = (
+        cfg.ipc3_catalog_marginal_min_score
+        if cfg.ipc3_catalog_marginal_compare_enabled
+        else min_score * 0.85
+    )
 
     route_decision = "ipc"
     if not capped:
@@ -211,6 +239,13 @@ async def match_obligation_to_catalog(
         route_decision == "compare"
         and 0.60 <= plan.confidence < cfg.routing_compare_min_confidence
     ):
+        route_decision = "expand"
+    elif (
+        route_decision == "compare"
+        and plan.confidence < cfg.routing_ipc_max_confidence
+        and capped
+    ):
+        # Low planner confidence — retrieve before compare; evidence gates decide IPC.
         route_decision = "expand"
 
     return CatalogMatchResult(

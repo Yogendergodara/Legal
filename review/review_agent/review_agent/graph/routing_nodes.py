@@ -16,6 +16,7 @@ from review_agent.services.routing_scope import filter_catalog_entries, review_c
 from review_agent.services.routing_cache import get_catalog_snapshot
 from review_agent.services.routing_limits import catalog_search_calls, planner_calls, reset_routing_limits
 from review_agent.services.routing_tenant import obligation_routing_active
+from review_agent.services.ipc3_gates import boilerplate_obligation_routable
 from review_agent.services.semantic_routing_planner import _fallback_plan, plan_obligation_routing
 from review_agent.observability import metrics
 from review_agent.state.review_state import ReviewState
@@ -69,7 +70,8 @@ async def semantic_route_node(
     alias_hit_count = 0
 
     for ob in obligations:
-        if (ob.is_boilerplate or not (ob.text or "").strip()) and not ob.explicit_policy_mentions:
+        boilerplate_skip = (ob.is_boilerplate or not (ob.text or "").strip()) and not ob.explicit_policy_mentions
+        if boilerplate_skip and not boilerplate_obligation_routable(ob, settings):
             plans[ob.obligation_id] = _skipped_plan(ob)
             continue
         alias = match_explicit_mentions(

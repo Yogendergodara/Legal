@@ -19,9 +19,17 @@ def boilerplate_substantive_override(
         return False
     if plan.routing_source != "skipped_boilerplate":
         return False
+    return boilerplate_obligation_routable(obligation, settings)
+
+
+def boilerplate_obligation_routable(
+    obligation: ContractObligation,
+    settings: ReviewSettings,
+) -> bool:
+    """E-BP2 — obligation-level check before skipped_boilerplate plan is assigned."""
+    if not settings.ipc3_boilerplate_substantive_override_enabled:
+        return False
     if list(obligation.explicit_policy_mentions or []):
-        return True
-    if plan.confidence >= settings.routing_planner_explicit_mention_confidence_floor:
         return True
     otype = (obligation.obligation_type or "").strip().lower()
     return bool(otype and otype not in ("boilerplate", "general"))

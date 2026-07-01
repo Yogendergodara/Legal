@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export obligation IPC audit rows from a smoke/review JSON (E-BP1 / IPC3-0C)."""
+"""E-BP1 — audit obligation IPC skips and E-BP2 override candidates from review JSON."""
 
 from __future__ import annotations
 
@@ -9,44 +9,90 @@ import sys
 from pathlib import Path
 
 
-def _load_review(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
+def _artifact(review: dict) -> dict:
+    return review.get("artifact") or review
 
 
-def export_audit(review: dict) -> dict:
-    artifact = review.get("artifact") or review
-    stats = artifact.get("compliance_stats") or {}
-    rows = artifact.get("obligation_ipc_rows") or artifact.get("obligation_audit") or []
-    pre_ipc = stats.get("obligation_pre_ipc_reasons") or stats.get("pre_ipc_reasons") or {}
+def _skip_reasons(review: dict) -> dict[str, int]:
+    art = _artifact(review)
+    stats = art.get("compliance_stats") or {}
+    funnel = stats.get("obligation_pipeline_funnel") or {}
+    return dict(
+        funnel.get("skip_by_reason")
+        or stats.get("obligation_evidence_skip_by_reason")
+        or {}
+    )
+
+
+def _obligation_rows(review: dict) -> list[dict]:
+    art = _artifact(review)
+    for key in ("obligation_ipc_rows", "obligation_audit", "obligation_pipeline_rows"):
+        rows = art.get(key)
+        if isinstance(rows, list) and rows:
+            return rows
+    return []
+
+
+def build_audit(review: dict) -> dict:
+    art = _artifact(review)
+    stats = art.get("compliance_stats") or {}
+    rows = _obligation_rows(review)
+    skip = _skip_reasons(review)
+
+    bp2_candidates: list[dict] = []
+    routing_skips: list[dict] = []
+    overlap_skips: list[dict] = []
+
+    for row in rows:
+        reason = str(row.get("ipc_reason") or row.get("reason") or "").strip()
+        entry = {
+            "obligation_id": row.get("obligation_id"),
+            "section_id": row.get("section_id"),
+            "reason": reason,
+            "obligation_type": row.get("obligation_type"),
+            "explicit_policy_mentions": row.get("explicit_policy_mentions") or [],
+            "is_boilerplate": row.get("is_boilerplate"),
+        }
+        if reason == "boilerplate":
+            otype = str(row.get("obligation_type") or "").lower()
+            mentions = row.get("explicit_policy_mentions") or []
+            if mentions or (otype and otype not in ("boilerplate", "general")):
+                bp2_candidates.append(entry)
+        elif reason in ("routing_or_skip", "ipc_preflight"):
+            routing_skips.append(entry)
+        elif reason == "low_concept_overlap":
+            overlap_skips.append(entry)
+
     return {
-        "obligation_total": stats.get("obligation_total"),
+        "obligation_total": stats.get("obligation_count") or stats.get("obligation_total"),
         "obligation_ipc_rate": stats.get("obligation_ipc_rate"),
-        "compare_queued": stats.get("compare_queued"),
-        "post_validation_compared": stats.get("post_validation_compared"),
-        "pre_ipc_reasons": pre_ipc,
-        "rows": rows,
+        "compare_queued": (stats.get("obligation_pipeline_funnel") or {}).get("compare_queued"),
+        "pre_ipc_reasons": skip,
+        "bp2_override_candidates": bp2_candidates,
+        "routing_or_skip_rows": routing_skips[:50],
+        "low_concept_overlap_rows": overlap_skips[:50],
+        "row_count": len(rows),
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Export IPC-3 obligation audit from review JSON")
-    parser.add_argument("review_json", type=Path, help="e.g. outputs/atlassian_pr01_smoke.json")
-    parser.add_argument(
-        "-o",
-        "--out",
-        type=Path,
-        default=None,
-        help="Output path (default: <input>_ipc_audit.json)",
-    )
+    parser = argparse.ArgumentParser(description="IPC-3 obligation skip audit (E-BP1)")
+    parser.add_argument("review_json", type=Path)
+    parser.add_argument("-o", "--out", type=Path, default=None)
     args = parser.parse_args()
     if not args.review_json.is_file():
         print(f"Not found: {args.review_json}", file=sys.stderr)
         return 1
 
-    audit = export_audit(_load_review(args.review_json))
+    audit = build_audit(json.loads(args.review_json.read_text(encoding="utf-8")))
     out = args.out or args.review_json.with_name(args.review_json.stem + "_ipc_audit.json")
     out.write_text(json.dumps(audit, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"Wrote {out} ({len(audit.get('rows') or [])} rows)")
+
+    print(f"Wrote {out}")
+    print(f"  skip_reasons: {audit.get('pre_ipc_reasons')}")
+    print(f"  E-BP2 candidates: {len(audit.get('bp2_override_candidates') or [])}")
+    print(f"  routing_or_skip rows: {len(audit.get('routing_or_skip_rows') or [])}")
+    print(f"  low_concept_overlap rows: {len(audit.get('low_concept_overlap_rows') or [])}")
     return 0
 
 

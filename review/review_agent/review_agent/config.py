@@ -211,8 +211,17 @@ class ReviewSettings(BaseSettings):
     catalog_match_obligation_fallback_enabled: bool = True
     catalog_match_title_min_score: float = 0.15
     catalog_match_max_queries: int = 4
-    # RC-03 — discovery before catalog match; rollback via env false
+    # PR-05B / IPC4 — run catalog search even when planner confidence < routing_ipc_max_confidence
+    catalog_match_search_on_low_confidence: bool = True
+    ipc3_catalog_marginal_compare_enabled: bool = False
+    ipc3_catalog_marginal_min_score: float = 0.22
     routing_discovery_before_match: bool = True
+    # IPC4 — deterministic catalog recovery when semantic search returns zero candidates
+    catalog_match_taxonomy_recovery_enabled: bool = True
+    catalog_match_taxonomy_recovery_min_score: float = 0.08
+    catalog_match_taxonomy_recovery_max_candidates: int = 3
+    catalog_match_broad_fence_min_confidence: float = 0.65
+    catalog_match_broad_fence_min_score: float = 0.05
 
     obligation_retrieval_enabled: bool = True
     obligation_retrieval_concurrency: int = 4
@@ -251,6 +260,10 @@ class ReviewSettings(BaseSettings):
     # IPC3 E-EV1 — semantic overlap gate (default off; calibrate before enable)
     evidence_semantic_overlap_enabled: bool = False
     evidence_min_semantic_overlap: float = 0.72
+    # IPC3 — defer low_routing_confidence IPC when rerank + catalog candidates are strong
+    evidence_low_routing_rerank_defer_enabled: bool = False
+    # IPC4 — catalog fenced strong + retrieval hits → compare (planner confidence not required)
+    evidence_catalog_strong_defer_enabled: bool = True
     obligation_section_cutover_mode: Literal["skip", "legacy_parallel", "ipc_fallback"] = "ipc_fallback"
 
     routing_cache_enabled: bool = True

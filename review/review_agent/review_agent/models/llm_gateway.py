@@ -139,6 +139,8 @@ def get_review_model(*, temperature: float = 0.0, max_tokens: int | None = None)
         api_key = (
             _env("REVIEW_LLM_API_KEY")
             or _env("LLM_API_KEY")
+            or _env("GROQ_API_KEY")
+            or _env("GOOGLE_API_KEY")
             or _env("OPENAI_API_KEY")
             or _env("MISTRAL_API_KEY")
         )
@@ -148,7 +150,11 @@ def get_review_model(*, temperature: float = 0.0, max_tokens: int | None = None)
         kwargs["base_url"] = base_url
     if api_key:
         kwargs["api_key"] = api_key
-    if provider:
+    if provider in ("google_genai", "google"):
+        if api_key:
+            os.environ.setdefault("GOOGLE_API_KEY", api_key)
+        kwargs["model_provider"] = "google_genai"
+    elif provider:
         kwargs["model_provider"] = "openai" if provider == "nvidia" and base_url else provider
     elif ":" not in model:
         kwargs["model_provider"] = "openai"
